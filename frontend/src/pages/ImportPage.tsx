@@ -92,6 +92,34 @@ export default function ImportPage() {
 
         <section className="card space-y-4">
           <h2 className="text-lg font-semibold">Epic, GOG, Amazon u otras (JSON / CSV)</h2>
+          <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-3 text-sm text-slate-300">
+            <p className="mb-1 font-medium text-indigo-200">
+              Lo más fácil: exporta tu biblioteca con Playnite
+            </p>
+            <ol className="list-decimal space-y-0.5 pl-5">
+              <li>
+                Instala{" "}
+                <a
+                  href="https://playnite.link"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-indigo-300 underline"
+                >
+                  Playnite
+                </a>{" "}
+                (gratis) y conecta tus tiendas: Epic, GOG, Amazon…
+              </li>
+              <li>
+                En Playnite, añade un complemento exportador de biblioteca (por ejemplo «Library
+                Exporter») y exporta a CSV o JSON.
+              </li>
+              <li>Sube aquí ese fichero: cada juego se coloca solo en su tienda.</li>
+            </ol>
+            <p className="mt-1 text-xs text-slate-400">
+              Se importan también tus favoritos de Playnite. Para actualizar, vuelve a exportar y
+              subir el fichero: los juegos repetidos no se duplican.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-3">
             <select
               className="input w-auto"
@@ -128,8 +156,10 @@ export default function ImportPage() {
             <p className="mt-2">
               Columnas reconocidas: <code>title</code> o <code>name</code> (obligatoria),{" "}
               <code>playtime_minutes</code> o <code>playtime_hours</code>/<code>hours</code>,{" "}
-              <code>status</code> (backlog, playing, completed, dropped, wishlist, other) y{" "}
-              <code>last_played</code>.
+              <code>status</code> (backlog, playing, completed, dropped, wishlist, other),{" "}
+              <code>last_played</code>, <code>favorite</code> y <code>source</code> /{" "}
+              <code>sourceName</code> (la tienda de cada juego; si existe, manda sobre la
+              plataforma elegida arriba).
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs">

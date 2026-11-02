@@ -69,3 +69,29 @@ def test_igdb_pick_exact_prefers_main_and_popular_game():
     assert pick_exact("PORTAL", rows)["id"] == 71
     assert pick_exact("Portal 3", rows) is None  # never guess a non-exact match
     assert clean_title("Battlefield™  1") == "Battlefield 1"
+
+
+def test_playnite_style_export_with_per_row_store():
+    from app.models.enums import Platform
+
+    content = (
+        b"playniteId,name,sourceName,steamAppId,favorite,isInstalled\n"
+        b"1,Hades,Steam,1145360,False,True\n"
+        b"2,Hades,Epic,,True,False\n"
+        b"3,The Witcher 3,GOG,,False,False\n"
+        b"4,Diablo IV,Battle.net,,False,True\n"
+        b"5,Hades,Steam,1145360,False,True\n"
+    )
+    games = parse_import_file("playnite-library.csv", content)
+    got = [(g.title, g.platform, g.steam_appid, g.is_favorite) for g in games]
+    assert got == [
+        ("Hades", Platform.STEAM, 1145360, False),
+        ("Hades", Platform.EPIC, None, True),
+        ("The Witcher 3", Platform.GOG, None, False),
+        ("Diablo IV", Platform.OTHER, None, False),
+    ]
+
+
+def test_playtime_in_seconds():
+    games = parse_import_file("x.json", b'[{"name": "Celeste", "playtime_seconds": 7260}]')
+    assert games[0].playtime_minutes == 121

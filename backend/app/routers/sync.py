@@ -64,16 +64,19 @@ async def import_file(
     db.add(job)
     to_enrich: list[int] = []
     for g in games:
-        game = await get_or_create_game(db, g.title)
-        await upsert_library_entry(
+        # Files listing several stores (e.g. Playnite) set the platform per row
+        game = await get_or_create_game(db, g.title, steam_appid=g.steam_appid)
+        entry, _ = await upsert_library_entry(
             db,
             user_id=user.id,
             game=game,
-            platform=platform,
+            platform=g.platform or platform,
             playtime_minutes=g.playtime_minutes,
             last_played_at=g.last_played_at,
             status=g.status,
         )
+        if g.is_favorite:
+            entry.is_favorite = True
         if game.metadata_updated_at is None:
             to_enrich.append(game.id)
     job.status = SyncJobStatus.SUCCESS
