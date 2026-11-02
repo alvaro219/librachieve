@@ -29,6 +29,21 @@ export default function StatsView({ stats }: { stats: UserStats }) {
           hint={`${stats.completed_games} de ${owned} (sin contar deseados)`}
         />
         <StatTile label="Jugando ahora" value={String(stats.games_by_status.playing ?? 0)} />
+        <StatTile
+          label="Logros obtenidos"
+          value={String(stats.achievements_unlocked)}
+          hint={`de ${stats.achievements_total} disponibles`}
+        />
+        <StatTile
+          label="Progreso de logros"
+          value={`${stats.achievements_total ? Math.round((stats.achievements_unlocked / stats.achievements_total) * 100) : 0} %`}
+          hint={`${stats.achievements_total - stats.achievements_unlocked} pendientes`}
+        />
+        <StatTile
+          label="Juegos al 100 %"
+          value={String(stats.perfect_games)}
+          hint="Con todos los logros"
+        />
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-3">

@@ -3,7 +3,9 @@ import { useState } from "react";
 
 import { libraryApi } from "../api/endpoints";
 import type { GameStatus, LibraryEntry } from "../api/types";
-import { PLATFORM_LABELS, STATUS_LABELS, STATUS_ORDER, formatDate } from "../lib/labels";
+import { STATUS_LABELS, STATUS_ORDER } from "../lib/labels";
+import AchievementList from "./AchievementList";
+import { GameHeader, GameTabs, type GameTab } from "./GameHeader";
 import Modal from "./Modal";
 
 interface Props {
@@ -16,6 +18,7 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<GameStatus>(entry.status);
   const [folder, setFolder] = useState(entry.custom_folder ?? "");
+  const [tab, setTab] = useState<GameTab>("details");
   const [hours, setHours] = useState(String(Math.round((entry.playtime_minutes / 60) * 10) / 10));
 
   const invalidate = () => {
@@ -50,17 +53,12 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
 
   return (
     <Modal title={game.title} onClose={onClose}>
-      <div className="mb-5 flex gap-4">
-        {game.cover_url && (
-          <img src={game.cover_url} alt="" className="h-32 w-24 shrink-0 rounded-lg object-cover" />
-        )}
-        <div className="space-y-1 text-sm text-slate-400">
-          <p>{PLATFORM_LABELS[entry.platform]}</p>
-          {game.release_date && <p>Lanzamiento: {formatDate(game.release_date)}</p>}
-          {game.genres.length > 0 && <p>{game.genres.join(" · ")}</p>}
-          {entry.last_played_at && <p>Última partida: {formatDate(entry.last_played_at)}</p>}
-        </div>
-      </div>
+      <GameHeader entry={entry} />
+      <GameTabs entry={entry} tab={tab} onChange={setTab} />
+      {tab === "achievements" ? (
+        <AchievementList entryId={entry.id} />
+      ) : (
+        <>
       {game.summary && <p className="mb-5 line-clamp-4 text-sm text-slate-300">{game.summary}</p>}
 
       <form
@@ -140,6 +138,8 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
           </div>
         </div>
       </form>
+        </>
+      )}
     </Modal>
   );
 }

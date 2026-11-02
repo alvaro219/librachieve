@@ -3,7 +3,13 @@ import type { GameStatus, LibraryEntry, Platform } from "./types";
 
 // GraphQL is used only for library list queries with complex filtering (see CLAUDE.md).
 
-export type SortField = "TITLE" | "PLAYTIME" | "ADDED_AT" | "LAST_PLAYED" | "RELEASE_DATE";
+export type SortField =
+  | "TITLE"
+  | "PLAYTIME"
+  | "ADDED_AT"
+  | "LAST_PLAYED"
+  | "RELEASE_DATE"
+  | "ACHIEVEMENTS";
 export type SortDirection = "ASC" | "DESC";
 
 export interface LibraryFilter {
@@ -62,6 +68,8 @@ const LIBRARY_QUERY = /* GraphQL */ `
         playtimeMinutes
         lastPlayedAt
         addedAt
+        achievementsUnlocked
+        achievementsTotal
         game {
           id
           title
@@ -85,6 +93,8 @@ interface GqlEntry {
   playtimeMinutes: number;
   lastPlayedAt: string | null;
   addedAt: string;
+  achievementsUnlocked: number;
+  achievementsTotal: number;
   game: {
     id: number;
     title: string;
@@ -107,6 +117,8 @@ function toEntry(e: GqlEntry): LibraryEntry {
     playtime_minutes: e.playtimeMinutes,
     last_played_at: e.lastPlayedAt,
     added_at: e.addedAt,
+    achievements_unlocked: e.achievementsUnlocked,
+    achievements_total: e.achievementsTotal,
     game: {
       id: e.game.id,
       title: e.game.title,

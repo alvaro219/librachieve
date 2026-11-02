@@ -47,6 +47,9 @@ export interface UserStats {
   completed_games: number;
   completion_ratio: number;
   games_by_status: Record<GameStatus, number>;
+  achievements_unlocked: number;
+  achievements_total: number;
+  perfect_games: number;
   top_genres: GenreStat[];
   games_by_platform: PlatformStat[];
 }
@@ -79,7 +82,22 @@ export interface LibraryEntry {
   playtime_minutes: number;
   last_played_at: string | null;
   added_at: string;
+  achievements_unlocked: number;
+  achievements_total: number;
   game: Game;
+}
+
+export interface Achievement {
+  id: number;
+  name: string;
+  description: string | null;
+  icon_url: string | null;
+  icon_locked_url: string | null;
+  hidden: boolean;
+  /** Share of all players who unlocked it, 0-100 */
+  global_percent: number | null;
+  unlocked: boolean;
+  unlocked_at: string | null;
 }
 
 export interface LibraryEntryCreate {

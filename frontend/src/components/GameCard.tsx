@@ -42,6 +42,27 @@ export default function GameCard({ entry, onClick }: Props) {
           </span>
           <span>{formatPlaytime(entry.playtime_minutes)}</span>
         </div>
+        {entry.achievements_total > 0 && (
+          <div
+            className="mt-1"
+            title={`${entry.achievements_unlocked} de ${entry.achievements_total} logros`}
+          >
+            <div className="mb-1 flex justify-between text-[11px] text-slate-400">
+              <span>🏆 {entry.achievements_unlocked}/{entry.achievements_total}</span>
+              {entry.achievements_unlocked === entry.achievements_total && (
+                <span className="font-semibold text-amber-300">100 %</span>
+              )}
+            </div>
+            <div className="h-1 rounded-full bg-slate-800">
+              <div
+                className="h-1 rounded-full bg-series-1"
+                style={{
+                  width: `${(entry.achievements_unlocked / entry.achievements_total) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </button>
   );

@@ -43,5 +43,8 @@ class UserStats(BaseModel):
     completed_games: int
     completion_ratio: float = Field(description="completed / owned (wishlist excluded), 0..1")
     games_by_status: dict[str, int]
+    achievements_unlocked: int
+    achievements_total: int
+    perfect_games: int = Field(description="Games with every achievement unlocked")
     top_genres: list[GenreStat]
     games_by_platform: list[PlatformStat]

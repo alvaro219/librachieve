@@ -16,7 +16,8 @@ Librachieve is a full-stack web application for personal video game library mana
 1. **Platform sync:** Steam library import via Steam Web API (OpenID sign-in + GetOwnedGames with our server API key). Epic Games, GOG and Amazon Games via manual JSON/CSV import.
 2. **Game metadata:** enriched automatically from IGDB API (cover art, genres, release date, description). Results cached in Redis.
 3. **Library management:** games are categorized into — Backlog, Playing, Completed, Dropped, Wishlist, Other (free-form folder, `custom_folder`).
-4. **User stats:** playtime tracking, completion ratio, most played genres, games per platform.
+4. **User stats:** playtime tracking, completion ratio, most played genres, games per platform, achievements (unlocked/total, 100% games).
+6. **Achievements:** Steam achievements via the official Web API (`app/services/achievements.py`): schema in Spanish (`l=spanish`) + global % refreshed weekly per game, player unlocks on every Steam sync (played games only). Counters are denormalised on `library_entries`.
 5. **User profiles:** public/private toggle. JWT-based auth with role support (user / admin).
 
 ## Project Structure
@@ -34,6 +35,7 @@ Librachieve is a full-stack web application for personal video game library mana
 - Steam sync and IGDB enrichment run in the ARQ worker (`arq app.worker.WorkerSettings`), not FastAPI BackgroundTasks, so jobs survive API restarts. Job state the user sees lives in Postgres (`sync_jobs`).
 - All endpoints are typed (Pydantic models on backend, TypeScript interfaces in `frontend/src/api/types.ts` — keep them in sync).
 - PostgreSQL is the single source of truth. Redis is cache only, never primary storage.
+- Epic/GOG account login (unofficial launcher APIs) was requested but is on hold pending the user's decision; Amazon stays file-import only.
 - Postgres enum types are created/dropped explicitly in migrations (autogenerate doesn't handle shared enums or drop them on downgrade).
 
 ## Commands

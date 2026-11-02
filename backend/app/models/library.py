@@ -27,6 +27,10 @@ class LibraryEntry(Base):
     custom_folder: Mapped[str | None] = mapped_column(String(64))
     playtime_minutes: Mapped[int] = mapped_column(default=0, server_default="0")
     last_played_at: Mapped[datetime | None]
+    # Denormalised counters (kept in sync by the achievements sync) so lists don't join per row.
+    # achievements_total == 0 means the game has no achievements on this platform (or unknown).
+    achievements_unlocked: Mapped[int] = mapped_column(default=0, server_default="0")
+    achievements_total: Mapped[int] = mapped_column(default=0, server_default="0")
     added_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

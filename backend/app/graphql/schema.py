@@ -28,6 +28,7 @@ class LibrarySortField(enum.Enum):
     ADDED_AT = "added_at"
     LAST_PLAYED = "last_played"
     RELEASE_DATE = "release_date"
+    ACHIEVEMENTS = "achievements"
 
 
 @strawberry.enum
@@ -57,6 +58,8 @@ class LibraryEntryType:
     playtime_minutes: int
     last_played_at: datetime | None
     added_at: datetime
+    achievements_unlocked: int
+    achievements_total: int
     game: GameType
 
 
@@ -106,6 +109,10 @@ _SORT_COLUMNS = {
     LibrarySortField.ADDED_AT: LibraryEntry.added_at,
     LibrarySortField.LAST_PLAYED: LibraryEntry.last_played_at,
     LibrarySortField.RELEASE_DATE: Game.release_date,
+    # Completion ratio; games without achievements sort last (NULL)
+    LibrarySortField.ACHIEVEMENTS: LibraryEntry.achievements_unlocked
+    * 1.0
+    / func.nullif(LibraryEntry.achievements_total, 0),
 }
 
 
@@ -143,6 +150,8 @@ def _to_type(e: LibraryEntry) -> LibraryEntryType:
         playtime_minutes=e.playtime_minutes,
         last_played_at=e.last_played_at,
         added_at=e.added_at,
+        achievements_unlocked=e.achievements_unlocked,
+        achievements_total=e.achievements_total,
         game=GameType(
             id=g.id,
             title=g.title,
@@ -187,7 +196,11 @@ class Query:
 
         sort = sort or LibrarySort()
         column = _SORT_COLUMNS[sort.field]
-        order = desc(column).nulls_last() if sort.direction == SortDirection.DESC else asc(column)
+        order = (
+            desc(column).nulls_last()
+            if sort.direction == SortDirection.DESC
+            else asc(column).nulls_last()
+        )
         rows = await ctx.db.scalars(
             base.order_by(order, LibraryEntry.id).limit(limit).offset(max(offset, 0))
         )

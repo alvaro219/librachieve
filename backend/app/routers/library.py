@@ -6,9 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis import get_redis
 from app.db.session import get_db
-from app.deps import get_current_user
-from app.models import Game, GameStatus, LibraryEntry, Platform, User
-from app.schemas.library import LibraryEntryCreate, LibraryEntryOut, LibraryEntryUpdate, LibraryPage
+from app.deps import get_current_user, get_optional_user
+from app.models import Achievement, Game, GameStatus, LibraryEntry, Platform, User, UserAchievement
+from app.routers.users import can_view
+from app.schemas.library import (
+    AchievementOut,
+    LibraryEntryCreate,
+    LibraryEntryOut,
+    LibraryEntryUpdate,
+    LibraryPage,
+)
 from app.services import igdb
 from app.services.catalog import get_or_create_game, upsert_library_entry
 from app.services.queue import get_queue
@@ -126,3 +133,41 @@ async def delete_entry(
     entry = await _get_own_entry(db, entry_id, user)
     await db.delete(entry)
     await db.commit()
+
+
+@router.get("/{entry_id}/achievements", response_model=list[AchievementOut])
+async def list_achievements(
+    entry_id: int,
+    viewer: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Achievements of a library entry: your own, or one from a public profile."""
+    entry = await db.get(LibraryEntry, entry_id)
+    owner = await db.get(User, entry.user_id) if entry else None
+    if entry is None or owner is None or not can_view(viewer, owner):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Library entry not found")
+
+    rows = await db.execute(
+        select(Achievement, UserAchievement.unlocked_at, UserAchievement.user_id.is_not(None))
+        .outerjoin(
+            UserAchievement,
+            (UserAchievement.achievement_id == Achievement.id)
+            & (UserAchievement.user_id == entry.user_id),
+        )
+        .where(Achievement.game_id == entry.game_id, Achievement.platform == entry.platform)
+        .order_by(Achievement.display_order)
+    )
+    return [
+        AchievementOut(
+            id=a.id,
+            name=a.name,
+            description=a.description,
+            icon_url=a.icon_url,
+            icon_locked_url=a.icon_locked_url,
+            hidden=a.hidden,
+            global_percent=a.global_percent,
+            unlocked=bool(unlocked),
+            unlocked_at=unlocked_at,
+        )
+        for a, unlocked_at, unlocked in rows
+    ]

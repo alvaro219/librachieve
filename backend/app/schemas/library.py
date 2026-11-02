@@ -16,7 +16,23 @@ class LibraryEntryOut(BaseModel):
     playtime_minutes: int
     last_played_at: datetime | None
     added_at: datetime
+    achievements_unlocked: int
+    achievements_total: int
     game: GameOut
+
+
+class AchievementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    description: str | None
+    icon_url: str | None
+    icon_locked_url: str | None
+    hidden: bool
+    global_percent: float | None
+    unlocked: bool
+    unlocked_at: datetime | None
 
 
 class LibraryEntryCreate(BaseModel):

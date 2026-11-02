@@ -12,6 +12,7 @@ import type { GameStatus, LibraryEntry, Platform } from "../api/types";
 import { PLATFORMS, PLATFORM_LABELS, STATUS_LABELS, STATUS_ORDER } from "../lib/labels";
 import AddGameDialog from "./AddGameDialog";
 import EntryEditor from "./EntryEditor";
+import GameDetail from "./GameDetail";
 import GameCard from "./GameCard";
 
 const PAGE_SIZE = 60;
@@ -22,6 +23,7 @@ const SORTS: { value: `${SortField}:${SortDirection}`; label: string }[] = [
   { value: "LAST_PLAYED:DESC", label: "Jugados recientemente" },
   { value: "ADDED_AT:DESC", label: "Añadidos recientemente" },
   { value: "RELEASE_DATE:DESC", label: "Lanzamiento (nuevos)" },
+  { value: "ACHIEVEMENTS:DESC", label: "Más logros (%)" },
 ];
 
 interface Props {
@@ -39,6 +41,7 @@ export default function LibraryBrowser({ username }: Props) {
   const [sort, setSort] = useState<(typeof SORTS)[number]["value"]>("TITLE:ASC");
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<LibraryEntry | null>(null);
+  const [viewing, setViewing] = useState<LibraryEntry | null>(null);
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
@@ -178,7 +181,7 @@ export default function LibraryBrowser({ username }: Props) {
           <GameCard
             key={entry.id}
             entry={entry}
-            onClick={editable ? () => setEditing(entry) : undefined}
+            onClick={() => (editable ? setEditing(entry) : setViewing(entry))}
           />
         ))}
       </div>
@@ -212,6 +215,7 @@ export default function LibraryBrowser({ username }: Props) {
           onClose={() => setEditing(null)}
         />
       )}
+      {viewing && <GameDetail entry={viewing} onClose={() => setViewing(null)} />}
       {adding && <AddGameDialog onClose={() => setAdding(false)} />}
     </div>
   );

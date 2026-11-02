@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type {
+  Achievement,
   IgdbSearchResult,
   LibraryEntry,
   LibraryEntryCreate,
@@ -37,6 +38,7 @@ export const libraryApi = {
   update: (id: number, body: LibraryEntryUpdate) =>
     api<LibraryEntry>(`/api/library/${id}`, { method: "PATCH", json: body }),
   remove: (id: number) => api<void>(`/api/library/${id}`, { method: "DELETE" }),
+  achievements: (id: number) => api<Achievement[]>(`/api/library/${id}/achievements`),
 };
 
 export const gamesApi = {

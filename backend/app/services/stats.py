@@ -19,6 +19,19 @@ async def compute_user_stats(db: AsyncSession, user_id: int, top_genres: int = 8
         )
     )
 
+    ach_unlocked, ach_total, perfect = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(LibraryEntry.achievements_unlocked), 0),
+                func.coalesce(func.sum(LibraryEntry.achievements_total), 0),
+                func.count().filter(
+                    LibraryEntry.achievements_total > 0,
+                    LibraryEntry.achievements_unlocked >= LibraryEntry.achievements_total,
+                ),
+            ).where(LibraryEntry.user_id == user_id)
+        )
+    ).one()
+
     platform_rows = await db.execute(
         select(LibraryEntry.platform, func.count())
         .where(LibraryEntry.user_id == user_id, LibraryEntry.status != GameStatus.WISHLIST)
@@ -50,6 +63,9 @@ async def compute_user_stats(db: AsyncSession, user_id: int, top_genres: int = 8
         completed_games=completed,
         completion_ratio=round(completed / owned, 4) if owned else 0.0,
         games_by_status={s.value: by_status.get(s.value, 0) for s in GameStatus},
+        achievements_unlocked=int(ach_unlocked),
+        achievements_total=int(ach_total),
+        perfect_games=perfect,
         top_genres=[
             GenreStat(genre=g, playtime_minutes=int(p or 0), games=c) for g, p, c in genre_rows
         ],

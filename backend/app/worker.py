@@ -10,11 +10,12 @@ from datetime import UTC, datetime
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.redis import redis_client
 from app.db.session import SessionLocal
 from app.models import Game, Platform, SyncJob, SyncJobStatus
-from app.services import igdb, steam
+from app.services import achievements, igdb, steam
 from app.services.catalog import get_or_create_game, upsert_library_entry
 from app.services.queue import redis_settings
 
@@ -48,8 +49,19 @@ async def sync_steam(ctx: dict, job_id: int, steam_id: str) -> int:
                 )
                 if game.metadata_updated_at is None:
                     new_game_ids.append(game.id)
-            job.status = SyncJobStatus.SUCCESS
             job.imported_count = len(owned)
+            await db.commit()
+
+            # Achievements are a bonus: a failure here keeps the imported library.
+            try:
+                await achievements.sync_steam_achievements(db, redis_client, job.user_id, steam_id)
+                await db.commit()
+            except (httpx.HTTPError, SQLAlchemyError) as e:
+                logger.warning("Steam achievements sync failed for job %s: %s", job_id, e)
+                await db.rollback()
+                job = await db.get(SyncJob, job_id)
+                job.error = "Biblioteca importada, pero falló la sincronización de logros."
+            job.status = SyncJobStatus.SUCCESS
         except Exception as e:  # any failure must leave the job in a terminal state
             if not isinstance(e, steam.SteamError | httpx.HTTPError):
                 logger.exception("Steam sync %s crashed", job_id)
