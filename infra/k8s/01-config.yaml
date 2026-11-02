@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: librachieve-config
+  namespace: librachieve
+data:
+  ENVIRONMENT: staging
+  FRONTEND_URL: http://librachieve.local
+  REDIS_URL: redis://redis:6379/0
+  POSTGRES_DB: librachieve
+  POSTGRES_USER: librachieve
+---
+# Real values go in infra/k8s/secret.yaml (git-ignored). Create it from infra/k8s-secret.example.yaml.

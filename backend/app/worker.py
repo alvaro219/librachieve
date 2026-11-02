@@ -1,0 +1,90 @@
+"""ARQ worker: `arq app.worker.WorkerSettings`.
+
+Jobs live in Redis, so a sync survives an API restart. Job results/state the user sees are
+written to Postgres (sync_jobs), which stays the source of truth.
+"""
+
+import logging
+from datetime import UTC, datetime
+
+import httpx
+from sqlalchemy import select
+
+from app.core.redis import redis_client
+from app.db.session import SessionLocal
+from app.models import Game, Platform, SyncJob, SyncJobStatus
+from app.services import igdb, steam
+from app.services.catalog import get_or_create_game, upsert_library_entry
+from app.services.queue import redis_settings
+
+logger = logging.getLogger(__name__)
+
+
+def _now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+async def sync_steam(ctx: dict, job_id: int, steam_id: str) -> int:
+    async with SessionLocal() as db:
+        job = await db.get(SyncJob, job_id)
+        if job is None:
+            return 0
+        job.status = SyncJobStatus.RUNNING
+        await db.commit()
+
+        try:
+            owned = await steam.get_owned_games(steam_id)
+            new_game_ids: list[int] = []
+            for g in owned:
+                game = await get_or_create_game(db, g.name, steam_appid=g.appid)
+                await upsert_library_entry(
+                    db,
+                    user_id=job.user_id,
+                    game=game,
+                    platform=Platform.STEAM,
+                    playtime_minutes=g.playtime_minutes,
+                    last_played_at=g.last_played_at,
+                )
+                if game.metadata_updated_at is None:
+                    new_game_ids.append(game.id)
+            job.status = SyncJobStatus.SUCCESS
+            job.imported_count = len(owned)
+        except Exception as e:  # any failure must leave the job in a terminal state
+            if not isinstance(e, steam.SteamError | httpx.HTTPError):
+                logger.exception("Steam sync %s crashed", job_id)
+            await db.rollback()
+            job = await db.get(SyncJob, job_id)
+            job.status = SyncJobStatus.FAILED
+            job.error = str(e)[:1000]
+            new_game_ids = []
+        job.finished_at = _now()
+        await db.commit()
+
+    if new_game_ids:
+        await ctx["redis"].enqueue_job("enrich_games", new_game_ids)
+    return job.imported_count
+
+
+async def enrich_games(ctx: dict, game_ids: list[int]) -> int:
+    if not igdb.is_configured():
+        logger.warning("IGDB not configured; skipping enrichment of %d games", len(game_ids))
+        return 0
+    enriched = 0
+    async with SessionLocal() as db:
+        games = (await db.scalars(select(Game).where(Game.id.in_(game_ids)))).all()
+        for game in games:
+            try:
+                if await igdb.enrich_game(db, redis_client, game):
+                    enriched += 1
+                await db.commit()
+            except httpx.HTTPError as e:
+                await db.rollback()
+                logger.warning("IGDB enrichment failed for game %s: %s", game.id, e)
+    return enriched
+
+
+class WorkerSettings:
+    functions = [sync_steam, enrich_games]
+    redis_settings = redis_settings
+    max_jobs = 5
+    job_timeout = 600

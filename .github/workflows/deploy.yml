@@ -1,0 +1,67 @@
+# Deploys main to AWS: frontend -> S3 (+ CloudFront invalidation), backend -> EC2 via SSH.
+# Needs these repository secrets/variables (Settings > Secrets and variables > Actions):
+#   secrets: AWS_ROLE_ARN, EC2_HOST, EC2_USER, EC2_SSH_KEY
+#   vars:    AWS_REGION, S3_BUCKET, CLOUDFRONT_DISTRIBUTION_ID (optional)
+# The EC2 host must have Docker + the repo checked out at ~/librachieve with a production .env.
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: deploy-production
+
+jobs:
+  deploy:
+    if: ${{ vars.S3_BUCKET != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload frontend to S3
+        run: |
+          aws s3 sync frontend/dist "s3://${{ vars.S3_BUCKET }}" --delete \
+            --exclude index.html --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp frontend/dist/index.html "s3://${{ vars.S3_BUCKET }}/index.html" \
+            --cache-control "no-cache"
+      - name: Invalidate CloudFront
+        if: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/index.html"
+
+      - name: Deploy backend to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/librachieve
+            git fetch --depth 1 origin "${{ github.sha }}"
+            git checkout --force FETCH_HEAD
+            docker compose -f infra/docker-compose.prod.yml up -d --build
+            docker image prune -f

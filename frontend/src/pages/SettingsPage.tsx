@@ -1,0 +1,129 @@
+import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+
+import { authApi, usersApi } from "../api/endpoints";
+import { useAuth } from "../auth/AuthContext";
+
+const STEAM_MESSAGES: Record<string, { text: string; ok: boolean }> = {
+  linked: { text: "Cuenta de Steam vinculada correctamente.", ok: true },
+  taken: { text: "Esa cuenta de Steam ya está vinculada a otro usuario.", ok: false },
+  expired: { text: "El enlace de vinculación caducó. Inténtalo de nuevo.", ok: false },
+};
+
+export default function SettingsPage() {
+  const { user, setUser, logout } = useAuth();
+  const [params] = useSearchParams();
+  const [username, setUsername] = useState(user!.username);
+  const steamMsg = STEAM_MESSAGES[params.get("steam") ?? ""];
+
+  const update = useMutation({
+    mutationFn: usersApi.updateMe,
+    onSuccess: setUser,
+  });
+  const linkSteam = useMutation({
+    mutationFn: authApi.steamLinkUrl,
+    onSuccess: ({ url }) => window.location.assign(url),
+  });
+  const deleteAccount = useMutation({
+    mutationFn: usersApi.deleteMe,
+    onSuccess: () => void logout(),
+  });
+
+  if (!user) return null;
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <h1 className="text-2xl font-bold">Ajustes</h1>
+
+      {steamMsg && (
+        <p
+          className={`rounded-lg border p-3 text-sm ${
+            steamMsg.ok
+              ? "border-emerald-700 bg-emerald-950/40 text-emerald-300"
+              : "border-red-800 bg-red-950/40 text-red-300"
+          }`}
+        >
+          {steamMsg.ok ? "✓ " : "✕ "}
+          {steamMsg.text}
+        </p>
+      )}
+
+      <section className="card space-y-4">
+        <h2 className="font-semibold">Perfil</h2>
+        <form
+          className="flex gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            update.mutate({ username });
+          }}
+        >
+          <input
+            className="input"
+            value={username}
+            pattern="[A-Za-z0-9_\-]{3,32}"
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <button
+            className="btn-primary"
+            disabled={update.isPending || username === user.username}
+          >
+            Guardar
+          </button>
+        </form>
+
+        <label className="flex items-center justify-between gap-4">
+          <span>
+            <span className="block text-sm font-medium">Perfil público</span>
+            <span className="text-xs text-slate-400">
+              Cualquiera podrá ver tu biblioteca y estadísticas en{" "}
+              <Link to={`/u/${user.username}`} className="text-indigo-400 hover:underline">
+                /u/{user.username}
+              </Link>
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-indigo-500"
+            checked={user.is_public}
+            disabled={update.isPending}
+            onChange={(e) => update.mutate({ is_public: e.target.checked })}
+          />
+        </label>
+        {update.error && <p className="text-sm text-red-400">{update.error.message}</p>}
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Steam</h2>
+        {user.steam_id ? (
+          <p className="text-sm text-slate-400">Vinculada: SteamID {user.steam_id}</p>
+        ) : (
+          <button
+            className="btn-secondary"
+            disabled={linkSteam.isPending}
+            onClick={() => linkSteam.mutate()}
+          >
+            Vincular cuenta de Steam
+          </button>
+        )}
+      </section>
+
+      <section className="card space-y-3 border-red-900/60">
+        <h2 className="font-semibold text-red-300">Zona peligrosa</h2>
+        <p className="text-sm text-slate-400">
+          Eliminar la cuenta borra tu biblioteca y tus estadísticas de forma permanente.
+        </p>
+        <button
+          className="btn-danger"
+          disabled={deleteAccount.isPending}
+          onClick={() =>
+            confirm("¿Seguro que quieres eliminar tu cuenta? No se puede deshacer.") &&
+            deleteAccount.mutate()
+          }
+        >
+          Eliminar cuenta
+        </button>
+      </section>
+    </div>
+  );
+}

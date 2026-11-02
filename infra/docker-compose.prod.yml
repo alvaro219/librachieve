@@ -1,0 +1,54 @@
+# Production stack on EC2 (backend + worker + Postgres + Redis). The frontend is served from S3.
+# Reads secrets from ../.env on the host.
+name: librachieve-prod
+
+x-backend: &backend
+  build:
+    context: ..
+    dockerfile: backend/Dockerfile
+  env_file: ../.env
+  environment:
+    ENVIRONMENT: production
+    REDIS_URL: redis://redis:6379/0
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    env_file: ../.env
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    <<: *backend
+    ports:
+      - "127.0.0.1:8000:8000"  # put nginx/ALB with TLS in front
+
+  worker:
+    <<: *backend
+    command: ["arq", "app.worker.WorkerSettings"]
+
+volumes:
+  pgdata:
+  redisdata:

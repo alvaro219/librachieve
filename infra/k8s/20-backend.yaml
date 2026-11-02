@@ -1,0 +1,71 @@
+# Images are built inside Minikube's Docker daemon (see infra/README.md), hence imagePullPolicy: Never.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: librachieve
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      initContainers:
+        - name: migrate
+          image: librachieve-backend:latest
+          imagePullPolicy: Never
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef: { name: librachieve-config }
+            - secretRef: { name: librachieve-secrets }
+      containers:
+        - name: backend
+          image: librachieve-backend:latest
+          imagePullPolicy: Never
+          command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+          ports: [{ containerPort: 8000 }]
+          envFrom:
+            - configMapRef: { name: librachieve-config }
+            - secretRef: { name: librachieve-secrets }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: librachieve
+spec:
+  selector: { app: backend }
+  ports: [{ port: 8000 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: librachieve
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: worker }
+  template:
+    metadata:
+      labels: { app: worker }
+    spec:
+      containers:
+        - name: worker
+          image: librachieve-backend:latest
+          imagePullPolicy: Never
+          command: ["arq", "app.worker.WorkerSettings"]
+          envFrom:
+            - configMapRef: { name: librachieve-config }
+            - secretRef: { name: librachieve-secrets }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
