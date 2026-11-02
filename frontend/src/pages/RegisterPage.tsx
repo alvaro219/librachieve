@@ -60,6 +60,13 @@ export default function RegisterPage() {
           required
         />
         {error && <p className="text-sm text-red-400">{error}</p>}
+        <p className="text-xs text-slate-400">
+          Al crear la cuenta aceptas la{" "}
+          <Link to="/privacidad" className="text-indigo-400 hover:underline">
+            política de privacidad
+          </Link>
+          .
+        </p>
         <button className="btn-primary w-full" disabled={busy}>
           Crear cuenta
         </button>

@@ -9,6 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.ratelimit import hit, limit_by_ip
 from app.core.redis import get_redis
 from app.core.security import (
     REFRESH_COOKIE_NAME,
@@ -47,7 +48,12 @@ async def _issue_tokens(response: Response, redis: Redis, user: User) -> TokenRe
     )
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[limit_by_ip("register", limit=5, window_seconds=3600)],
+)
 async def register(
     body: RegisterRequest,
     response: Response,
@@ -75,7 +81,11 @@ async def register(
     return await _issue_tokens(response, redis, user)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[limit_by_ip("login", limit=20, window_seconds=900)],
+)
 async def login(
     body: LoginRequest,
     response: Response,
@@ -83,6 +93,8 @@ async def login(
     redis: Redis = Depends(get_redis),
 ):
     login_value = body.login.strip().lower()
+    # Also per account, so one password can't be brute-forced from many IPs
+    await hit(redis, f"login:account:{login_value}", limit=10, window_seconds=900)
     user = await db.scalar(
         select(User).where(or_(func.lower(User.username) == login_value, User.email == login_value))
     )
@@ -91,7 +103,11 @@ async def login(
     return await _issue_tokens(response, redis, user)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    dependencies=[limit_by_ip("refresh", limit=120, window_seconds=60)],
+)
 async def refresh(
     request: Request,
     response: Response,

@@ -1,8 +1,9 @@
-# Deploys main to AWS: frontend -> S3 (+ CloudFront invalidation), backend -> EC2 via SSH.
-# Needs these repository secrets/variables (Settings > Secrets and variables > Actions):
-#   secrets: AWS_ROLE_ARN, EC2_HOST, EC2_USER, EC2_SSH_KEY
-#   vars:    AWS_REGION, S3_BUCKET, CLOUDFRONT_DISTRIBUTION_ID (optional)
-# The EC2 host must have Docker + the repo checked out at ~/librachieve with a production .env.
+# Deploys main to the production VM (Oracle Cloud) after CI passes.
+# Repository settings > Secrets and variables > Actions:
+#   variables: DEPLOY_HOST (server IP or hostname), DEPLOY_USER (e.g. ubuntu)
+#   secrets:   DEPLOY_SSH_KEY (private key whose public half is in the server's authorized_keys)
+# The server holds the repo at ~/librachieve with its production .env (see infra/README.md).
+# Skipped entirely while DEPLOY_HOST is not set.
 name: Deploy
 
 on:
@@ -13,55 +14,37 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
 
 concurrency: deploy-production
 
 jobs:
   deploy:
-    if: ${{ vars.S3_BUCKET != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
+    if: ${{ vars.DEPLOY_HOST != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Build frontend
-        working-directory: frontend
-        run: npm ci && npm run build
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Upload frontend to S3
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          USER: ${{ vars.DEPLOY_USER }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          aws s3 sync frontend/dist "s3://${{ vars.S3_BUCKET }}" --delete \
-            --exclude index.html --cache-control "public,max-age=31536000,immutable"
-          aws s3 cp frontend/dist/index.html "s3://${{ vars.S3_BUCKET }}/index.html" \
-            --cache-control "no-cache"
-      - name: Invalidate CloudFront
-        if: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+          install -m 600 /dev/null key && printf '%s\n' "$SSH_KEY" > key
+          ssh -i key -o StrictHostKeyChecking=accept-new "$USER@$HOST" bash -s <<EOF
+          set -euo pipefail
+          cd ~/librachieve
+          git fetch --depth 1 origin "$SHA"
+          git checkout --force FETCH_HEAD
+          docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --build --remove-orphans
+          docker image prune -f
+          EOF
+          rm -f key
+      - name: Smoke test
         run: |
-          aws cloudfront create-invalidation \
-            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/index.html"
-
-      - name: Deploy backend to EC2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            set -e
-            cd ~/librachieve
-            git fetch --depth 1 origin "${{ github.sha }}"
-            git checkout --force FETCH_HEAD
-            docker compose -f infra/docker-compose.prod.yml up -d --build
-            docker image prune -f
+          for i in $(seq 1 30); do
+            curl -fsS "https://${{ vars.DEPLOY_DOMAIN || vars.DEPLOY_HOST }}/api/health" && exit 0
+            sleep 5
+          done
+          echo "Health check failed" && exit 1

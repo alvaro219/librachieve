@@ -5,6 +5,7 @@ import { useAuth } from "./auth/AuthContext";
 import Layout from "./components/Layout";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ImportPage from "./pages/ImportPage";
+import { LegalNoticePage, PrivacyPage } from "./pages/LegalPages";
 import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -29,6 +30,8 @@ export default function App() {
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route element={<Layout />}>
         <Route path="/u/:username" element={<ProfilePage />} />
+        <Route path="/privacidad" element={<PrivacyPage />} />
+        <Route path="/aviso-legal" element={<LegalNoticePage />} />
         <Route
           path="/"
           element={

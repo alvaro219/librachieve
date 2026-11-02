@@ -1,5 +1,8 @@
-# Production stack on EC2 (backend + worker + Postgres + Redis). The frontend is served from S3.
-# Reads secrets from ../.env on the host.
+# Production stack on a single VM (Oracle Cloud Always Free, ARM64).
+# From the repo root on the server:
+#   docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --build
+# Required in .env: DOMAIN, SECRET_KEY, POSTGRES_PASSWORD, STEAM_API_KEY, IGDB_CLIENT_ID,
+# IGDB_CLIENT_SECRET (see infra/README.md).
 name: librachieve-prod
 
 x-backend: &backend
@@ -9,7 +12,11 @@ x-backend: &backend
   env_file: ../.env
   environment:
     ENVIRONMENT: production
+    FRONTEND_URL: https://${DOMAIN:?set DOMAIN in .env}
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-librachieve}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-librachieve}
     REDIS_URL: redis://redis:6379/0
+    # Only Caddy can reach the backend, so trust its X-Forwarded-For (real client IPs)
+    FORWARDED_ALLOW_IPS: "*"
   restart: unless-stopped
   depends_on:
     postgres:
@@ -20,7 +27,10 @@ x-backend: &backend
 services:
   postgres:
     image: postgres:16-alpine
-    env_file: ../.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-librachieve}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-librachieve}
     restart: unless-stopped
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -42,13 +52,54 @@ services:
 
   backend:
     <<: *backend
-    ports:
-      - "127.0.0.1:8000:8000"  # put nginx/ALB with TLS in front
 
   worker:
     <<: *backend
     command: ["arq", "app.worker.WorkerSettings"]
 
+  web:
+    build:
+      context: ../frontend
+      target: web
+    environment:
+      SITE_ADDRESS: ${DOMAIN:?set DOMAIN in .env}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+  # Daily compressed pg_dump into the "backups" volume, keeping the last 14 days.
+  backup:
+    image: postgres:16-alpine
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-librachieve}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-librachieve}
+    entrypoint: >
+      sh -c 'while true; do
+        f=/backups/librachieve-$$(date +%Y%m%d-%H%M).sql.gz;
+        pg_dump --no-owner | gzip > "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup ok: $$f";
+        find /backups -name "librachieve-*.sql.gz" -mtime +14 -delete;
+        sleep 86400;
+      done'
+    restart: unless-stopped
+    volumes:
+      - backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
   redisdata:
+  caddy_data:
+  caddy_config:
+  backups:

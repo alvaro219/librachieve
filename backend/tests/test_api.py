@@ -30,6 +30,15 @@ async def _schema():
     yield
 
 
+@pytest_asyncio.fixture(loop_scope="session", autouse=True)
+async def _reset_rate_limits():
+    from app.core.redis import redis_client
+
+    keys = [k async for k in redis_client.scan_iter("ratelimit:*")]
+    if keys:
+        await redis_client.delete(*keys)
+
+
 @pytest_asyncio.fixture(loop_scope="session")
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -216,3 +225,16 @@ async def test_favorites(client):
         "total": 1,
         "items": [{"isFavorite": True, "game": {"title": "Celeste"}}],
     }
+
+
+async def test_login_is_rate_limited_per_account(client):
+    headers = await _register(client)
+    username = headers.pop("username")
+    bad = {"login": username, "password": "wrong-password"}
+    codes = [(await client.post("/api/auth/login", json=bad)).status_code for _ in range(11)]
+    assert codes[:10] == [401] * 10
+    assert codes[10] == 429
+    # Still blocked even with the right password until the window expires
+    ok = {"login": username, "password": "supersecret"}
+    resp = await client.post("/api/auth/login", json=ok)
+    assert resp.status_code == 429 and "Retry-After" in resp.headers

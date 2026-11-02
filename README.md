@@ -54,9 +54,35 @@ kubectl apply -f infra/k8s/
 # añade "<minikube ip> librachieve.local" al fichero hosts
 ```
 
-## Despliegue en AWS
+## Producción (Oracle Cloud, gratis)
 
-`.github/workflows/deploy.yml` se ejecuta tras un CI verde en `main`: sube el frontend a S3 (+ invalidación de CloudFront) y despliega backend + worker en EC2 con `infra/docker-compose.prod.yml`. Necesita configurar en GitHub los secretos `AWS_ROLE_ARN`, `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` y las variables `AWS_REGION`, `S3_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`. Mientras `S3_BUCKET` no esté definida, el despliegue se omite.
+Todo corre en una sola máquina virtual ARM del plan «Always Free» de Oracle Cloud con
+`infra/docker-compose.prod.yml`:
+
+- **Caddy** sirve la web y redirige `/api` y `/graphql` al backend, con HTTPS automático (Let's Encrypt).
+- **backend + worker + PostgreSQL + Redis**, igual que en desarrollo.
+- **backup**: copia diaria comprimida de la base de datos (se guardan 14 días).
+
+Puesta en marcha (una vez): `bash infra/server-setup.sh` en el servidor (Docker, cortafuegos, swap y
+actualizaciones automáticas), copiar el `.env` de producción y arrancar:
+
+```bash
+docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --build
+```
+
+Variables del `.env` de producción: `DOMAIN`, `SECRET_KEY`, `POSTGRES_PASSWORD`, `STEAM_API_KEY`,
+`IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`.
+
+Después, `.github/workflows/deploy.yml` despliega solo cada push a `main` con el CI en verde
+(variables `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_DOMAIN` y el secreto `DEPLOY_SSH_KEY`).
+
+Restaurar una copia: `gunzip -c librachieve-FECHA.sql.gz | docker compose -f infra/docker-compose.prod.yml exec -T postgres psql -U librachieve librachieve`.
+
+## Otras tiendas (Epic, GOG, Amazon…)
+
+No tienen API pública, así que se importan con un fichero JSON/CSV. Lo más cómodo es Playnite con un
+complemento exportador de biblioteca: el fichero indica la tienda de cada juego y Librachieve lo
+reparte solo. Volver a importar actualiza sin duplicar.
 
 ## Desarrollo
 

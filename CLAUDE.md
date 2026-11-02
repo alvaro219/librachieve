@@ -10,7 +10,7 @@ Librachieve is a full-stack web application for personal video game library mana
 - **API Layer:** REST (primary) + GraphQL via Strawberry (secondary, for complex list queries)
 - **Auth:** JWT access token + revocable refresh token; Steam sign-in via OpenID 2.0
 - **Containerization:** Docker + Docker Compose (dev) / Kubernetes via Minikube (staging)
-- **CI/CD:** GitHub Actions → deploy to AWS (EC2 + S3 for assets)
+- **CI/CD:** GitHub Actions → SSH deploy to a single Oracle Cloud Always Free ARM VM (Caddy + Docker Compose, `infra/docker-compose.prod.yml`). The user chose Oracle over AWS to keep hosting free.
 
 ## Core Features
 1. **Platform sync:** Steam library import via Steam Web API (OpenID sign-in + GetOwnedGames with our server API key). Epic Games, GOG and Amazon Games via manual JSON/CSV import.
@@ -24,7 +24,7 @@ Librachieve is a full-stack web application for personal video game library mana
 - `frontend/` — React app (`src/api` typed client, `src/pages`, `src/components`, UI strings in Spanish, enum labels in `src/lib/labels.ts`)
 - `backend/` — FastAPI app with routers: auth, games, library, users, sync
   - `app/models` SQLAlchemy models · `app/schemas` Pydantic · `app/services` (steam, igdb, importers, catalog, stats, queue) · `app/graphql` Strawberry schema · `app/worker.py` ARQ worker · `app/cli.py` management commands
-- `infra/` — Docker Compose (dev + prod), Kubernetes manifests (`infra/k8s`)
+- `infra/` — Docker Compose (dev + prod), `Caddyfile` (prod HTTPS entry point), `server-setup.sh` (VM bootstrap), Kubernetes manifests (`infra/k8s`, Minikube staging)
 - `.github/workflows/` — CI and deploy workflows (GitHub only reads them from here, not from `infra/`)
 - `migrations/` + root `alembic.ini` — Alembic migration files
 
@@ -35,7 +35,9 @@ Librachieve is a full-stack web application for personal video game library mana
 - Steam sync and IGDB enrichment run in the ARQ worker (`arq app.worker.WorkerSettings`), not FastAPI BackgroundTasks, so jobs survive API restarts. Job state the user sees lives in Postgres (`sync_jobs`).
 - All endpoints are typed (Pydantic models on backend, TypeScript interfaces in `frontend/src/api/types.ts` — keep them in sync).
 - PostgreSQL is the single source of truth. Redis is cache only, never primary storage.
-- Epic/GOG account login (unofficial launcher APIs) was requested but is on hold pending the user's decision; Amazon stays file-import only.
+- Epic/GOG/Amazon: file import only (JSON/CSV, Playnite exports with per-row `sourceName`). Logging into them via unofficial launcher APIs was rejected (ToS + storing third-party tokens server-side). A local desktop companion is a possible future idea.
+- Auth endpoints are rate limited in Redis (`app/core/ratelimit.py`); tests reset `ratelimit:*` keys.
+- Legal pages (`/privacidad`, `/aviso-legal`) are required (Spain/GDPR); owner data lives in `frontend/src/lib/site.ts`.
 - Postgres enum types are created/dropped explicitly in migrations (autogenerate doesn't handle shared enums or drop them on downgrade).
 
 ## Commands
