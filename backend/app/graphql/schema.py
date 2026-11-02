@@ -56,6 +56,7 @@ class LibraryEntryType:
     status: GameStatus
     custom_folder: str | None
     playtime_minutes: int
+    is_favorite: bool
     last_played_at: datetime | None
     added_at: datetime
     achievements_unlocked: int
@@ -78,6 +79,7 @@ class LibraryFilter:
     )
     search: str | None = None
     custom_folder: str | None = None
+    favorites_only: bool = False
     min_playtime_minutes: int | None = None
     max_playtime_minutes: int | None = None
     released_after: date | None = None
@@ -127,6 +129,8 @@ def apply_filter(stmt: Select, f: LibraryFilter | None) -> Select:
         stmt = stmt.where(Game.genres.overlap(f.genres))
     if f.search:
         stmt = stmt.where(Game.normalized_title.contains(normalize_title(f.search)))
+    if f.favorites_only:
+        stmt = stmt.where(LibraryEntry.is_favorite.is_(True))
     if f.custom_folder:
         stmt = stmt.where(LibraryEntry.custom_folder == f.custom_folder)
     if f.min_playtime_minutes is not None:
@@ -148,6 +152,7 @@ def _to_type(e: LibraryEntry) -> LibraryEntryType:
         status=e.status,
         custom_folder=e.custom_folder,
         playtime_minutes=e.playtime_minutes,
+        is_favorite=e.is_favorite,
         last_played_at=e.last_played_at,
         added_at=e.added_at,
         achievements_unlocked=e.achievements_unlocked,

@@ -116,7 +116,9 @@ async def update_entry(
     entry = await _get_own_entry(db, entry_id, user)
     data = body.model_dump(exclude_unset=True)
     for field, value in data.items():
-        setattr(entry, field, value)
+        # Only custom_folder is nullable; an explicit null elsewhere means "leave as is".
+        if value is not None or field == "custom_folder":
+            setattr(entry, field, value)
     if entry.status != GameStatus.OTHER:
         entry.custom_folder = None
     await db.commit()

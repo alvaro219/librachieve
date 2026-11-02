@@ -4,16 +4,19 @@ import { PLATFORM_LABELS, STATUS_LABELS, formatPlaytime } from "../lib/labels";
 interface Props {
   entry: LibraryEntry;
   onClick?: () => void;
+  /** Shows a star toggle on the cover (own library only). */
+  onToggleFavorite?: () => void;
 }
 
-export default function GameCard({ entry, onClick }: Props) {
+export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
   const { game } = entry;
   return (
+    <div className="group relative flex">
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      className="group flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-left transition enabled:hover:-translate-y-0.5 enabled:hover:border-indigo-500/60 disabled:cursor-default"
+      className="flex w-full flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-left transition enabled:hover:-translate-y-0.5 enabled:hover:border-indigo-500/60 disabled:cursor-default"
     >
       <div className="relative aspect-[3/4] w-full bg-slate-800">
         {game.cover_url ? (
@@ -65,5 +68,28 @@ export default function GameCard({ entry, onClick }: Props) {
         )}
       </div>
     </button>
+    {onToggleFavorite ? (
+      <button
+        type="button"
+        onClick={onToggleFavorite}
+        aria-pressed={entry.is_favorite}
+        title={entry.is_favorite ? "Quitar de favoritos" : "Añadir a favoritos"}
+        className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/80 text-lg leading-none transition hover:scale-110 ${
+          entry.is_favorite ? "text-amber-300" : "text-slate-400 opacity-0 group-hover:opacity-100 focus:opacity-100"
+        }`}
+      >
+        {entry.is_favorite ? "★" : "☆"}
+      </button>
+    ) : (
+      entry.is_favorite && (
+        <span
+          title="Favorito"
+          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/80 text-lg leading-none text-amber-300"
+        >
+          ★
+        </span>
+      )
+    )}
+    </div>
   );
 }

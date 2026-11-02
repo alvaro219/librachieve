@@ -18,6 +18,7 @@ export interface LibraryFilter {
   genres?: string[];
   search?: string;
   customFolder?: string;
+  favoritesOnly?: boolean;
   minPlaytimeMinutes?: number;
   maxPlaytimeMinutes?: number;
   releasedAfter?: string;
@@ -66,6 +67,7 @@ const LIBRARY_QUERY = /* GraphQL */ `
         status
         customFolder
         playtimeMinutes
+        isFavorite
         lastPlayedAt
         addedAt
         achievementsUnlocked
@@ -91,6 +93,7 @@ interface GqlEntry {
   status: string;
   customFolder: string | null;
   playtimeMinutes: number;
+  isFavorite: boolean;
   lastPlayedAt: string | null;
   addedAt: string;
   achievementsUnlocked: number;
@@ -115,6 +118,7 @@ function toEntry(e: GqlEntry): LibraryEntry {
     status: e.status.toLowerCase() as GameStatus,
     custom_folder: e.customFolder,
     playtime_minutes: e.playtimeMinutes,
+    is_favorite: e.isFavorite,
     last_played_at: e.lastPlayedAt,
     added_at: e.addedAt,
     achievements_unlocked: e.achievementsUnlocked,

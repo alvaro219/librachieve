@@ -14,6 +14,7 @@ class LibraryEntryOut(BaseModel):
     status: GameStatus
     custom_folder: str | None
     playtime_minutes: int
+    is_favorite: bool
     last_played_at: datetime | None
     added_at: datetime
     achievements_unlocked: int
@@ -55,6 +56,7 @@ class LibraryEntryCreate(BaseModel):
 
 class LibraryEntryUpdate(BaseModel):
     status: GameStatus | None = None
+    is_favorite: bool | None = None
     custom_folder: str | None = Field(None, max_length=64)
     playtime_minutes: int | None = Field(None, ge=0)
 

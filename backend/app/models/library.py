@@ -26,6 +26,7 @@ class LibraryEntry(Base):
     # Free-form folder name, only meaningful when status == OTHER
     custom_folder: Mapped[str | None] = mapped_column(String(64))
     playtime_minutes: Mapped[int] = mapped_column(default=0, server_default="0")
+    is_favorite: Mapped[bool] = mapped_column(default=False, server_default="false")
     last_played_at: Mapped[datetime | None]
     # Denormalised counters (kept in sync by the achievements sync) so lists don't join per row.
     # achievements_total == 0 means the game has no achievements on this platform (or unknown).

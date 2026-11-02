@@ -80,6 +80,7 @@ export interface LibraryEntry {
   status: GameStatus;
   custom_folder: string | null;
   playtime_minutes: number;
+  is_favorite: boolean;
   last_played_at: string | null;
   added_at: string;
   achievements_unlocked: number;
@@ -112,6 +113,7 @@ export interface LibraryEntryCreate {
 
 export interface LibraryEntryUpdate {
   status?: GameStatus;
+  is_favorite?: boolean;
   custom_folder?: string | null;
   playtime_minutes?: number;
 }

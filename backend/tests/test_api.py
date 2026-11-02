@@ -191,3 +191,28 @@ async def test_achievements_flow(client):
         "achievementsTotal": 2,
     }
     assert username
+
+
+async def test_favorites(client):
+    headers = await _register(client)
+    headers.pop("username")
+    ids = []
+    for title in ("Hades", "Celeste", "Tunic"):
+        resp = await client.post("/api/library", headers=headers, json={"title": title})
+        ids.append(resp.json()["id"])
+        assert resp.json()["is_favorite"] is False
+
+    resp = await client.patch(f"/api/library/{ids[1]}", headers=headers, json={"is_favorite": True})
+    assert resp.json()["is_favorite"] is True
+    # An explicit null must not wipe non-nullable fields
+    resp = await client.patch(
+        f"/api/library/{ids[1]}", headers=headers, json={"is_favorite": None, "status": None}
+    )
+    assert resp.status_code == 200 and resp.json()["is_favorite"] is True
+
+    query = "{ library(filter:{favoritesOnly:true}) { total items { isFavorite game { title } } } }"
+    data = (await client.post("/graphql", headers=headers, json={"query": query})).json()
+    assert data["data"]["library"] == {
+        "total": 1,
+        "items": [{"isFavorite": True, "game": {"title": "Celeste"}}],
+    }

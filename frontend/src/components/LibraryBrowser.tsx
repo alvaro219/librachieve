@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import {
@@ -8,6 +8,7 @@ import {
   type SortDirection,
   type SortField,
 } from "../api/graphql";
+import { libraryApi } from "../api/endpoints";
 import type { GameStatus, LibraryEntry, Platform } from "../api/types";
 import { PLATFORMS, PLATFORM_LABELS, STATUS_LABELS, STATUS_ORDER } from "../lib/labels";
 import AddGameDialog from "./AddGameDialog";
@@ -36,6 +37,7 @@ export default function LibraryBrowser({ username }: Props) {
   const [status, setStatus] = useState<GameStatus | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
   const [platform, setPlatform] = useState<Platform | "">("");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<(typeof SORTS)[number]["value"]>("TITLE:ASC");
@@ -50,12 +52,13 @@ export default function LibraryBrowser({ username }: Props) {
   }, [searchInput]);
 
   // Any filter change goes back to the first page.
-  useEffect(() => setPage(0), [status, folder, platform, search, sort]);
+  useEffect(() => setPage(0), [status, folder, platform, favoritesOnly, search, sort]);
 
   const filter: LibraryFilter = {
     statuses: status ? [status] : undefined,
     platforms: platform ? [platform] : undefined,
     search: search || undefined,
+    favoritesOnly: favoritesOnly || undefined,
     customFolder: status === "other" && folder ? folder : undefined,
   };
   const [field, direction] = sort.split(":") as [SortField, SortDirection];
@@ -77,6 +80,13 @@ export default function LibraryBrowser({ username }: Props) {
     queryKey: ["customFolders"],
     queryFn: fetchCustomFolders,
     enabled: editable,
+  });
+
+  const queryClient = useQueryClient();
+  const toggleFavorite = useMutation({
+    mutationFn: (entry: LibraryEntry) =>
+      libraryApi.update(entry.id, { is_favorite: !entry.is_favorite }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["library"] }),
   });
 
   const total = library.data?.total ?? 0;
@@ -143,6 +153,18 @@ export default function LibraryBrowser({ username }: Props) {
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => setFavoritesOnly((v) => !v)}
+          aria-pressed={favoritesOnly}
+          className={`rounded-lg border px-3 py-2 text-sm transition ${
+            favoritesOnly
+              ? "border-amber-400/70 bg-amber-400/10 text-amber-200"
+              : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
+          }`}
+        >
+          {favoritesOnly ? "★" : "☆"} Favoritos
+        </button>
         <select
           className="input w-auto"
           value={sort}
@@ -182,6 +204,7 @@ export default function LibraryBrowser({ username }: Props) {
             key={entry.id}
             entry={entry}
             onClick={() => (editable ? setEditing(entry) : setViewing(entry))}
+            onToggleFavorite={editable ? () => toggleFavorite.mutate(entry) : undefined}
           />
         ))}
       </div>
