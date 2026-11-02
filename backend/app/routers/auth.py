@@ -1,6 +1,7 @@
 import re
 import secrets
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from redis.asyncio import Redis
@@ -140,6 +141,14 @@ async def _unique_username(db: AsyncSession, base: str) -> str:
     return candidate
 
 
+async def _player_summary(steam_id: str) -> steam.PlayerSummary | None:
+    """Best effort: a Steam API hiccup must not block signing in."""
+    try:
+        return await steam.get_player_summary(steam_id)
+    except httpx.HTTPError:
+        return None
+
+
 @router.get("/steam/callback")
 async def steam_callback(
     request: Request,
@@ -163,19 +172,23 @@ async def steam_callback(
         if owner and owner.id != user.id:
             return RedirectResponse(f"{settings.frontend_url}/settings?steam=taken")
         user.steam_id = steam_id
+        summary = await _player_summary(steam_id)
+        if summary and summary.avatar_url and not user.avatar_url:
+            user.avatar_url = summary.avatar_url
         await db.commit()
         return RedirectResponse(f"{settings.frontend_url}/settings?steam=linked")
 
+    summary = await _player_summary(steam_id)
     user = owner
     if user is None:
-        summary = await steam.get_player_summary(steam_id)
         user = User(
             username=await _unique_username(db, summary.persona_name if summary else "player"),
             steam_id=steam_id,
-            avatar_url=summary.avatar_url if summary else None,
         )
         db.add(user)
-        await db.commit()
+    if summary and summary.avatar_url:
+        user.avatar_url = summary.avatar_url  # keep the Steam avatar fresh on every login
+    await db.commit()
 
     redirect = RedirectResponse(f"{settings.frontend_url}/auth/callback")
     await _issue_tokens(redirect, redis, user)

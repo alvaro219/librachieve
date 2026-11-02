@@ -48,6 +48,9 @@ docker compose -f infra/docker-compose.yml run --rm -e DATABASE_URL=postgresql+a
 # New migration after changing models
 docker compose -f infra/docker-compose.yml run --rm backend alembic revision --autogenerate -m "describe change"
 
+# Re-run IGDB matching (--all resets every game's metadata first)
+docker compose -f infra/docker-compose.yml exec backend python -m app.cli reenrich [--all]
+
 # Make a user admin
 docker compose -f infra/docker-compose.yml exec backend python -m app.cli make-admin <username>
 

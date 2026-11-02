@@ -55,3 +55,17 @@ def test_rejects_bad_files(content):
 )
 def test_normalize_title(raw, expected):
     assert normalize_title(raw) == expected
+
+
+def test_igdb_pick_exact_prefers_main_and_popular_game():
+    from app.services.igdb import clean_title, pick_exact
+
+    rows = [
+        {"id": 14546, "name": "Portal", "game_type": 0, "total_rating_count": 6},
+        {"id": 71, "name": "Portal", "game_type": 0, "total_rating_count": 2500},
+        {"id": 999, "name": "Portal", "game_type": 13, "total_rating_count": 9000},  # bundle
+        {"id": 193776, "name": "Portal Maze 2", "game_type": 0},
+    ]
+    assert pick_exact("PORTAL", rows)["id"] == 71
+    assert pick_exact("Portal 3", rows) is None  # never guess a non-exact match
+    assert clean_title("Battlefield™  1") == "Battlefield 1"

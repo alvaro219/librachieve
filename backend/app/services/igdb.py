@@ -1,7 +1,15 @@
-"""IGDB client. Every API response is cached in Redis for settings.igdb_cache_ttl_seconds (24h)."""
+"""IGDB client. Every API response is cached in Redis for settings.igdb_cache_ttl_seconds (24h).
 
+Matching strategy (most to least reliable):
+1. Steam games: IGDB `external_games` lookup by Steam app id (exact).
+2. Other titles: exact (case-insensitive) name match, preferring main games with most ratings.
+3. No exact match: leave the game without metadata rather than attach the wrong game.
+"""
+
+import asyncio
 import json
 import logging
+import re
 from datetime import UTC, datetime
 
 import httpx
@@ -19,9 +27,16 @@ logger = logging.getLogger(__name__)
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 API_URL = "https://api.igdb.com/v4"
 COVER_URL = "https://images.igdb.com/igdb/image/upload/t_cover_big/{image_id}.jpg"
-FIELDS = "fields name,slug,summary,first_release_date,cover.image_id,genres.name;"
+FIELDS = (
+    "fields name,summary,first_release_date,cover.image_id,genres.name,"
+    "total_rating_count,game_type;"
+)
+STEAM_SOURCE = 1  # external_game_source id for Steam
+# game_type: 0 main game, 8 remake, 9 remaster, 10 expanded game, 11 port
+_MAIN_GAME_TYPES = {0, 8, 9, 10, 11}
 
 _TOKEN_KEY = "igdb:token"
+_TRADEMARKS = re.compile(r"[™®©]")
 
 
 class IgdbNotConfigured(RuntimeError):
@@ -50,32 +65,34 @@ async def _get_token(redis: Redis, client: httpx.AsyncClient) -> str:
     return data["access_token"]
 
 
-async def _query(redis: Redis, endpoint: str, body: str, cache_key: str) -> list[dict]:
+async def _post(redis: Redis, endpoint: str, body: str) -> list[dict]:
+    """Uncached IGDB request. Retries once on an expired token or rate limit (4 req/s)."""
     if not is_configured():
         raise IgdbNotConfigured("IGDB_CLIENT_ID / IGDB_CLIENT_SECRET are not set")
-
-    cached = await redis.get(cache_key)
-    if cached is not None:
-        return json.loads(cached)
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        token = await _get_token(redis, client)
-        resp = await client.post(
-            f"{API_URL}/{endpoint}",
-            content=body,
-            headers={"Client-ID": settings.igdb_client_id, "Authorization": f"Bearer {token}"},
-        )
-        if resp.status_code == 401:  # token revoked early: drop it and retry once
-            await redis.delete(_TOKEN_KEY)
+    async with httpx.AsyncClient(timeout=20) as client:
+        for attempt in range(2):
             token = await _get_token(redis, client)
             resp = await client.post(
                 f"{API_URL}/{endpoint}",
                 content=body,
                 headers={"Client-ID": settings.igdb_client_id, "Authorization": f"Bearer {token}"},
             )
+            if resp.status_code == 401 and attempt == 0:
+                await redis.delete(_TOKEN_KEY)
+                continue
+            if resp.status_code == 429 and attempt == 0:
+                await asyncio.sleep(1)
+                continue
+            break
         resp.raise_for_status()
-        data = resp.json()
+        return resp.json()
 
+
+async def _query(redis: Redis, endpoint: str, body: str, cache_key: str) -> list[dict]:
+    cached = await redis.get(cache_key)
+    if cached is not None:
+        return json.loads(cached)
+    data = await _post(redis, endpoint, body)
     await redis.set(cache_key, json.dumps(data), ex=settings.igdb_cache_ttl_seconds)
     return data
 
@@ -97,8 +114,13 @@ def _escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def clean_title(title: str) -> str:
+    """'Battlefield™ 1' -> 'Battlefield 1' (what IGDB stores)."""
+    return " ".join(_TRADEMARKS.sub("", title).split())
+
+
 async def search(redis: Redis, query: str, limit: int = 10) -> list[IgdbSearchResult]:
-    query = query.strip()
+    query = clean_title(query)
     body = f'search "{_escape(query)}"; {FIELDS} limit {limit};'
     key = f"igdb:search:{normalize_title(query)}:{limit}"
     return [_to_result(r) for r in await _query(redis, "games", body, key)]
@@ -110,14 +132,90 @@ async def get_by_id(redis: Redis, igdb_id: int) -> IgdbSearchResult | None:
     return _to_result(rows[0]) if rows else None
 
 
-def _best_match(title: str, results: list[IgdbSearchResult]) -> IgdbSearchResult | None:
-    if not results:
-        return None
+async def get_many(redis: Redis, igdb_ids: list[int]) -> dict[int, IgdbSearchResult]:
+    """Batch fetch, sharing the per-id cache with get_by_id."""
+    found: dict[int, IgdbSearchResult] = {}
+    missing = []
+    for igdb_id in dict.fromkeys(igdb_ids):
+        cached = await redis.get(f"igdb:game:{igdb_id}")
+        if cached is None:
+            missing.append(igdb_id)
+        elif rows := json.loads(cached):
+            found[igdb_id] = _to_result(rows[0])
+    for i in range(0, len(missing), 200):
+        chunk = missing[i : i + 200]
+        rows = await _post(
+            redis, "games", f"{FIELDS} where id = ({','.join(map(str, chunk))}); limit 500;"
+        )
+        by_id = {r["id"]: r for r in rows}
+        for igdb_id in chunk:
+            raw = by_id.get(igdb_id)
+            await redis.set(
+                f"igdb:game:{igdb_id}",
+                json.dumps([raw] if raw else []),
+                ex=settings.igdb_cache_ttl_seconds,
+            )
+            if raw:
+                found[igdb_id] = _to_result(raw)
+    return found
+
+
+async def igdb_ids_for_steam(redis: Redis, appids: list[int]) -> dict[int, int]:
+    """Map Steam app ids to IGDB game ids. Unknown app ids are cached as misses ("0")."""
+    result: dict[int, int] = {}
+    missing = []
+    for appid in dict.fromkeys(appids):
+        cached = await redis.get(f"igdb:steam:{appid}")
+        if cached is None:
+            missing.append(appid)
+        elif cached != "0":
+            result[appid] = int(cached)
+    for i in range(0, len(missing), 200):
+        chunk = missing[i : i + 200]
+        uids = ",".join(f'"{a}"' for a in chunk)
+        rows = await _post(
+            redis,
+            "external_games",
+            f"fields game,uid; where external_game_source = {STEAM_SOURCE} & uid = ({uids});"
+            " limit 500;",
+        )
+        mapping = {int(r["uid"]): r["game"] for r in rows if r.get("game") and r.get("uid")}
+        for appid in chunk:
+            await redis.set(
+                f"igdb:steam:{appid}",
+                str(mapping.get(appid, 0)),
+                ex=settings.igdb_cache_ttl_seconds,
+            )
+        result.update(mapping)
+    return result
+
+
+def pick_exact(title: str, rows: list[dict]) -> dict | None:
+    """Best IGDB row whose name equals the title: main games first, then most rated."""
     wanted = normalize_title(title)
-    for r in results:
-        if normalize_title(r.title) == wanted:
-            return r
-    return results[0]
+    exact = [r for r in rows if normalize_title(r.get("name", "")) == wanted]
+    if not exact:
+        return None
+    return max(
+        exact,
+        key=lambda r: (r.get("game_type", 0) in _MAIN_GAME_TYPES, r.get("total_rating_count", 0)),
+    )
+
+
+async def find_by_title(redis: Redis, title: str) -> IgdbSearchResult | None:
+    name = clean_title(title)
+    key = normalize_title(name)
+    # `~` is case-insensitive equality; IGDB's fuzzy `search` often ranks the famous game low.
+    rows = await _query(
+        redis, "games", f'{FIELDS} where name ~ "{_escape(name)}"; limit 50;', f"igdb:name:{key}"
+    )
+    best = pick_exact(name, rows)
+    if best is None:
+        rows = await _query(
+            redis, "games", f'search "{_escape(name)}"; {FIELDS} limit 20;', f"igdb:search:{key}:20"
+        )
+        best = pick_exact(name, rows)
+    return _to_result(best) if best else None
 
 
 def apply_metadata(game: Game, meta: IgdbSearchResult) -> None:
@@ -128,12 +226,18 @@ def apply_metadata(game: Game, meta: IgdbSearchResult) -> None:
     game.metadata_updated_at = datetime.now(UTC).replace(tzinfo=None)
 
 
-async def enrich_game(db: AsyncSession, redis: Redis, game: Game) -> bool:
-    """Fill cover/genres/summary/release date from IGDB. Returns True if metadata was found."""
-    if game.igdb_id:
-        meta = await get_by_id(redis, game.igdb_id)
-    else:
-        meta = _best_match(game.title, await search(redis, game.title, limit=5))
+async def enrich_game(
+    db: AsyncSession, redis: Redis, game: Game, meta: IgdbSearchResult | None = None
+) -> bool:
+    """Fill cover/genres/summary/release date from IGDB. Returns True if metadata was found.
+
+    `meta` may be pre-fetched by the caller (batch Steam lookups).
+    """
+    if meta is None:
+        if game.igdb_id:
+            meta = await get_by_id(redis, game.igdb_id)
+        else:
+            meta = await find_by_title(redis, game.title)
 
     if meta is None:
         game.metadata_updated_at = datetime.now(UTC).replace(tzinfo=None)

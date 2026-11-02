@@ -4,6 +4,7 @@ Jobs live in Redis, so a sync survives an API restart. Job results/state the use
 written to Postgres (sync_jobs), which stays the source of truth.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
@@ -72,14 +73,31 @@ async def enrich_games(ctx: dict, game_ids: list[int]) -> int:
     enriched = 0
     async with SessionLocal() as db:
         games = (await db.scalars(select(Game).where(Game.id.in_(game_ids)))).all()
+
+        # Steam games are matched exactly by app id, in two batched requests.
+        prefetched: dict[int, igdb.IgdbSearchResult] = {}
+        steam_games = [g for g in games if g.steam_appid and not g.igdb_id]
+        try:
+            by_appid = await igdb.igdb_ids_for_steam(
+                redis_client, [g.steam_appid for g in steam_games]
+            )
+            metas = await igdb.get_many(redis_client, list(by_appid.values()))
+            for g in steam_games:
+                if (igdb_id := by_appid.get(g.steam_appid)) and igdb_id in metas:
+                    prefetched[g.id] = metas[igdb_id]
+        except httpx.HTTPError as e:
+            logger.warning("IGDB Steam batch lookup failed, falling back to titles: %s", e)
+
         for game in games:
             try:
-                if await igdb.enrich_game(db, redis_client, game):
+                if game.id not in prefetched:
+                    await asyncio.sleep(0.3)  # stay under IGDB's 4 requests/second
+                if await igdb.enrich_game(db, redis_client, game, prefetched.get(game.id)):
                     enriched += 1
                 await db.commit()
             except httpx.HTTPError as e:
-                await db.rollback()
                 logger.warning("IGDB enrichment failed for game %s: %s", game.id, e)
+    logger.info("Enriched %d/%d games", enriched, len(game_ids))
     return enriched
 
 
