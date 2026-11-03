@@ -33,3 +33,10 @@
 @utility card {
   @apply rounded-xl border border-slate-800 bg-slate-900/60 p-5;
 }
+
+/* Native dropdown lists inherit the select colours: keep every list dark and legible */
+select option,
+select optgroup {
+  background-color: var(--color-slate-900);
+  color: var(--color-slate-100);
+}

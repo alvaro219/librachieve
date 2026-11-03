@@ -231,7 +231,7 @@ export default function LibraryBrowser({ username }: Props) {
           >
             <span className="text-slate-400">Nota</span>
             <select
-              className="cursor-pointer bg-transparent px-2 py-2 text-slate-100 focus:outline-none"
+              className="cursor-pointer bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none"
               value={ratingSource}
               onChange={(e) => setRatingSource(e.target.value as RatingSource)}
               aria-label="Fuente de la nota"
@@ -243,7 +243,7 @@ export default function LibraryBrowser({ username }: Props) {
               ))}
             </select>
             <select
-              className="cursor-pointer border-l border-slate-700 bg-transparent px-2 py-2 text-slate-100 focus:outline-none"
+              className="cursor-pointer border-l border-slate-700 bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none"
               value={minRating ?? ""}
               onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : null)}
               aria-label="Nota mínima"
