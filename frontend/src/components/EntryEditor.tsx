@@ -6,6 +6,7 @@ import type { GameStatus, LibraryEntry } from "../api/types";
 import { STATUS_LABELS, STATUS_ORDER } from "../lib/labels";
 import AchievementList from "./AchievementList";
 import { GameHeader, GameTabs, type GameTab } from "./GameHeader";
+import FolderPicker from "./FolderPicker";
 import Modal from "./Modal";
 
 interface Props {
@@ -89,22 +90,7 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
         </fieldset>
 
         {status === "other" && (
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-300">Carpeta</span>
-            <input
-              className="input"
-              list="folder-options"
-              value={folder}
-              maxLength={64}
-              placeholder="p. ej. Cooperativo, Retro…"
-              onChange={(e) => setFolder(e.target.value)}
-            />
-            <datalist id="folder-options">
-              {folders.map((f) => (
-                <option key={f} value={f} />
-              ))}
-            </datalist>
-          </label>
+          <FolderPicker value={folder} folders={folders} onChange={setFolder} />
         )}
 
         <label className="block text-sm">
