@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { authApi, syncApi } from "../api/endpoints";
 import type { Platform } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import PlatformIcon from "../components/PlatformIcon";
 import { PLATFORM_LABELS, SYNC_STATUS_LABELS, formatDate } from "../lib/labels";
 
 const MANUAL_PLATFORMS: Platform[] = ["epic", "gog", "amazon", "other"];
@@ -55,7 +56,10 @@ export default function ImportPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card space-y-4">
-          <h2 className="text-lg font-semibold">Steam</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <PlatformIcon platform="steam" title="" className="h-5 w-5" />
+            Steam
+          </h2>
           {user?.steam_id ? (
             <>
               <p className="text-sm text-slate-400">
@@ -91,7 +95,14 @@ export default function ImportPage() {
         </section>
 
         <section className="card space-y-4">
-          <h2 className="text-lg font-semibold">Epic, GOG, Amazon u otras (JSON / CSV)</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <span className="flex gap-1.5 text-slate-200">
+              {(["epic", "gog", "amazon"] as const).map((p) => (
+                <PlatformIcon key={p} platform={p} title="" className="h-5 w-5" />
+              ))}
+            </span>
+            Epic, GOG, Amazon u otras (JSON / CSV)
+          </h2>
           <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-3 text-sm text-slate-300">
             <p className="mb-1 font-medium text-indigo-200">
               Lo más fácil: exporta tu biblioteca con Playnite
@@ -189,7 +200,12 @@ export default function ImportPage() {
               {jobs.data.map((j) => (
                 <tr key={j.id}>
                   <td className="py-2">{formatDate(j.created_at)}</td>
-                  <td>{PLATFORM_LABELS[j.platform]}</td>
+                  <td>
+                    <span className="flex items-center gap-1.5">
+                      <PlatformIcon platform={j.platform} title="" className="h-4 w-4" />
+                      {PLATFORM_LABELS[j.platform]}
+                    </span>
+                  </td>
                   <td>
                     <span
                       className={

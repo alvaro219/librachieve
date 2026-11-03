@@ -1,6 +1,7 @@
 import type { UserStats } from "../api/types";
 import { PLATFORM_LABELS, STATUS_LABELS, STATUS_ORDER, formatPlaytime } from "../lib/labels";
 import BarList from "./BarList";
+import PlatformIcon from "./PlatformIcon";
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -65,6 +66,7 @@ export default function StatsView({ stats }: { stats: UserStats }) {
             emptyText="Sin juegos todavía."
             data={stats.games_by_platform.map((p) => ({
               label: PLATFORM_LABELS[p.platform],
+              icon: <PlatformIcon platform={p.platform} title="" className="h-4 w-4" />,
               value: p.games,
             }))}
           />

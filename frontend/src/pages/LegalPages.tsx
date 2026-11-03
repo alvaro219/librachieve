@@ -118,7 +118,9 @@ export function LegalNoticePage() {
       <h2>Marcas y contenidos de terceros</h2>
       <p>
         Los nombres, portadas e iconos de juegos y logros pertenecen a sus respectivos propietarios.
-        Los metadatos de juegos proceden de IGDB.com. Steam y el logotipo de Steam son marcas de
+        Los metadatos de juegos proceden de IGDB.com. Los logotipos de las tiendas se muestran solo
+        para indicar en qué plataforma tienes cada juego; los iconos proceden de Simple Icons (CC0) y,
+        el de Amazon, de Font Awesome Free (CC BY 4.0, fontawesome.com). Steam y el logotipo de Steam son marcas de
         Valve Corporation. {SITE.name} no está afiliado, patrocinado ni respaldado por Valve, Epic
         Games, GOG, Amazon ni Twitch.
       </p>

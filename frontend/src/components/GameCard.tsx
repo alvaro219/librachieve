@@ -1,5 +1,6 @@
 import type { LibraryEntry } from "../api/types";
-import { PLATFORM_LABELS, STATUS_LABELS, formatPlaytime } from "../lib/labels";
+import { STATUS_LABELS, formatPlaytime } from "../lib/labels";
+import PlatformIcon from "./PlatformIcon";
 
 interface Props {
   entry: LibraryEntry;
@@ -31,8 +32,8 @@ export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
             {game.title}
           </div>
         )}
-        <span className="absolute left-2 top-2 rounded-md bg-slate-950/80 px-2 py-0.5 text-xs text-slate-200">
-          {PLATFORM_LABELS[entry.platform]}
+        <span className="absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/80 text-slate-100">
+          <PlatformIcon platform={entry.platform} className="h-[18px] w-[18px]" />
         </span>
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">

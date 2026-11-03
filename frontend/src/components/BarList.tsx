@@ -1,8 +1,12 @@
 // Single-series horizontal bar chart: one hue (no legend needed; the card title names it),
 // bars capped at 12px with a rounded data-end and square baseline, value at the tip in text ink.
 
+import type { ReactNode } from "react";
+
 export interface BarDatum {
   label: string;
+  /** Optional mark shown before the label (e.g. a store logo). */
+  icon?: ReactNode;
   value: number;
   /** Shown at the bar tip and in the tooltip. Defaults to the raw value. */
   display?: string;
@@ -22,7 +26,10 @@ export default function BarList({ data, emptyText }: { data: BarDatum[]; emptyTe
         return (
           <li key={d.label} title={tooltip} className="group">
             <div className="mb-1 flex justify-between gap-3 text-sm">
-              <span className="truncate text-slate-300">{d.label}</span>
+              <span className="flex items-center gap-1.5 truncate text-slate-300">
+                {d.icon}
+                {d.label}
+              </span>
             </div>
             <div className="flex items-center gap-3">
               <div className="h-3 flex-1">

@@ -1,5 +1,6 @@
 import type { LibraryEntry } from "../api/types";
 import { PLATFORM_LABELS, STATUS_LABELS, formatDate, formatPlaytime } from "../lib/labels";
+import PlatformIcon from "./PlatformIcon";
 
 export type GameTab = "details" | "achievements";
 
@@ -11,7 +12,8 @@ export function GameHeader({ entry }: { entry: LibraryEntry }) {
         <img src={game.cover_url} alt="" className="h-32 w-24 shrink-0 rounded-lg object-cover" />
       )}
       <div className="space-y-1 text-sm text-slate-400">
-        <p>
+        <p className="flex items-center gap-1.5">
+          <PlatformIcon platform={entry.platform} title="" className="h-4 w-4 text-slate-200" />
           {PLATFORM_LABELS[entry.platform]} · {STATUS_LABELS[entry.status]} ·{" "}
           {formatPlaytime(entry.playtime_minutes)}
         </p>
