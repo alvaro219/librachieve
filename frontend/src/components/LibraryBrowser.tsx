@@ -21,13 +21,16 @@ const PAGE_SIZE = 60;
 
 type RatingSource = "igdb" | "community" | "critic" | "user";
 
-// Same labels as the score tiles in the game view
-const RATING_SOURCES: { value: RatingSource; label: string }[] = [
-  { value: "igdb", label: "la comunidad" },
-  { value: "community", label: "los usuarios" },
-  { value: "critic", label: "la crítica" },
-  { value: "user", label: "mi nota" },
-];
+// Same names as the score tiles in the game view
+const RATING_SOURCES: RatingSource[] = ["igdb", "community", "critic", "user"];
+const RATING_NAMES: Record<RatingSource, string> = {
+  igdb: "Comunidad",
+  community: "Usuarios",
+  critic: "Crítica",
+  user: "Tu nota",
+};
+const ratingLabel = (source: RatingSource, own: boolean) =>
+  source === "user" && !own ? "Su nota" : RATING_NAMES[source];
 
 const RATING_FILTER_KEYS = {
   igdb: "minIgdbRating",
@@ -38,17 +41,23 @@ const RATING_FILTER_KEYS = {
 
 const MIN_RATINGS = [50, 60, 70, 75, 80, 90];
 
-const SORTS: { value: `${SortField}:${SortDirection}`; label: string }[] = [
+type SortValue = `${SortField}:${SortDirection}`;
+
+const GENERAL_SORTS: { value: SortValue; label: string }[] = [
   { value: "TITLE:ASC", label: "Título (A-Z)" },
   { value: "PLAYTIME:DESC", label: "Más jugados" },
   { value: "LAST_PLAYED:DESC", label: "Jugados recientemente" },
   { value: "ADDED_AT:DESC", label: "Añadidos recientemente" },
   { value: "RELEASE_DATE:DESC", label: "Lanzamiento (nuevos)" },
   { value: "ACHIEVEMENTS:DESC", label: "Más logros (%)" },
-  { value: "USER_RATING:DESC", label: "Mi nota" },
-  { value: "COMMUNITY_RATING:DESC", label: "Nota de usuarios" },
-  { value: "CRITIC_RATING:DESC", label: "Nota de la crítica" },
 ];
+
+const RATING_SORT_FIELDS: Record<RatingSource, SortField> = {
+  igdb: "IGDB_RATING",
+  community: "COMMUNITY_RATING",
+  critic: "CRITIC_RATING",
+  user: "USER_RATING",
+};
 
 interface Props {
   /** View someone else's public library (read-only). Omit for your own. */
@@ -66,7 +75,7 @@ export default function LibraryBrowser({ username }: Props) {
   const [ratingSource, setRatingSource] = useState<RatingSource>("igdb");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<(typeof SORTS)[number]["value"]>("TITLE:ASC");
+  const [sort, setSort] = useState<SortValue>("TITLE:ASC");
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<LibraryEntry | null>(null);
   const [viewing, setViewing] = useState<LibraryEntry | null>(null);
@@ -170,95 +179,141 @@ export default function LibraryBrowser({ username }: Props) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-3">
         <input
-          className="input max-w-xs"
+          className="input flex-1"
           placeholder="Buscar por título…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
-        <select
-          className="input w-auto"
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value as Platform | "")}
-        >
-          <option value="">Todas las plataformas</option>
-          {PLATFORMS.map((p) => (
-            <option key={p} value={p}>
-              {PLATFORM_LABELS[p]}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => setFavoritesOnly((v) => !v)}
-          aria-pressed={favoritesOnly}
-          className={`rounded-lg border px-3 py-2 text-sm transition ${
-            favoritesOnly
-              ? "border-amber-400/70 bg-amber-400/10 text-amber-200"
-              : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
-          }`}
-        >
-          {favoritesOnly ? "★" : "☆"} Favoritos
-        </button>
-        <select
-          className="input w-auto max-w-[14rem]"
-          value={genre}
-          onChange={(e) => setGenre(e.target.value)}
-          aria-label="Género"
-        >
-          <option value="">Todos los géneros</option>
-          {genres.data?.map((g) => (
-            <option key={g.genre} value={g.genre}>
-              {g.genre} ({g.games})
-            </option>
-          ))}
-        </select>
-        <select
-          className="input w-auto"
-          value={minRating ?? ""}
-          onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : null)}
-          aria-label="Nota mínima"
-        >
-          <option value="">Cualquier nota</option>
-          {MIN_RATINGS.map((n) => (
-            <option key={n} value={n}>
-              Nota {n}+
-            </option>
-          ))}
-        </select>
-        {minRating !== null && (
-          <select
-            className="input w-auto"
-            value={ratingSource}
-            onChange={(e) => setRatingSource(e.target.value as RatingSource)}
-            aria-label="Fuente de la nota"
-          >
-            {RATING_SOURCES.map((r) => (
-              <option key={r.value} value={r.value}>
-                de {r.label}
-              </option>
-            ))}
-          </select>
-        )}
-        <select
-          className="input w-auto"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as typeof sort)}
-        >
-          {SORTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <span className="text-sm text-slate-400">{total} juegos</span>
         {editable && (
-          <button className="btn-primary ml-auto" onClick={() => setAdding(true)}>
+          <button className="btn-primary shrink-0" onClick={() => setAdding(true)}>
             + Añadir juego
           </button>
         )}
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Filtrar
+          </span>
+          <select
+            className="input w-auto"
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value as Platform | "")}
+            aria-label="Plataforma"
+          >
+            <option value="">Todas las plataformas</option>
+            {PLATFORMS.map((p) => (
+              <option key={p} value={p}>
+                {PLATFORM_LABELS[p]}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input w-auto max-w-[13rem]"
+            value={genre}
+            onChange={(e) => setGenre(e.target.value)}
+            aria-label="Género"
+          >
+            <option value="">Todos los géneros</option>
+            {genres.data?.map((g) => (
+              <option key={g.genre} value={g.genre}>
+                {g.genre} ({g.games})
+              </option>
+            ))}
+          </select>
+          <div
+            className={`flex items-center rounded-lg border bg-slate-900 pl-3 text-sm ${
+              minRating !== null ? "border-indigo-500/70" : "border-slate-700"
+            }`}
+          >
+            <span className="text-slate-400">Nota</span>
+            <select
+              className="cursor-pointer bg-transparent px-2 py-2 text-slate-100 focus:outline-none"
+              value={ratingSource}
+              onChange={(e) => setRatingSource(e.target.value as RatingSource)}
+              aria-label="Fuente de la nota"
+            >
+              {RATING_SOURCES.map((r) => (
+                <option key={r} value={r}>
+                  {ratingLabel(r, editable)}
+                </option>
+              ))}
+            </select>
+            <select
+              className="cursor-pointer border-l border-slate-700 bg-transparent px-2 py-2 text-slate-100 focus:outline-none"
+              value={minRating ?? ""}
+              onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : null)}
+              aria-label="Nota mínima"
+            >
+              <option value="">cualquiera</option>
+              {MIN_RATINGS.map((n) => (
+                <option key={n} value={n}>
+                  {n} o más
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFavoritesOnly((v) => !v)}
+            aria-pressed={favoritesOnly}
+            className={`rounded-lg border px-3 py-2 text-sm transition ${
+              favoritesOnly
+                ? "border-amber-400/70 bg-amber-400/10 text-amber-200"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
+            }`}
+          >
+            {favoritesOnly ? "★" : "☆"} Favoritos
+          </button>
+          {(platform || genre || minRating !== null || favoritesOnly) && (
+            <button
+              type="button"
+              className="px-2 text-sm text-slate-400 underline-offset-2 hover:text-white hover:underline"
+              onClick={() => {
+                setPlatform("");
+                setGenre("");
+                setMinRating(null);
+                setFavoritesOnly(false);
+              }}
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        <label className="flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Ordenar por
+          </span>
+          <select
+            className="input w-auto"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortValue)}
+          >
+            <optgroup label="General">
+              {GENERAL_SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Notas (de mayor a menor)">
+              {RATING_SOURCES.map((r) => (
+                <option key={r} value={`${RATING_SORT_FIELDS[r]}:DESC`}>
+                  {ratingLabel(r, editable)}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </label>
+      </div>
+
+      <p className="text-sm text-slate-400">
+        {total} {total === 1 ? "juego" : "juegos"}
+      </p>
 
       {library.error && <p className="text-red-400">{library.error.message}</p>}
       {library.isLoading && <p className="text-slate-400">Cargando biblioteca…</p>}

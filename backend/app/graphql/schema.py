@@ -31,6 +31,7 @@ class LibrarySortField(enum.Enum):
     ACHIEVEMENTS = "achievements"
     USER_RATING = "user_rating"
     COMMUNITY_RATING = "community_rating"
+    IGDB_RATING = "igdb_rating"
     CRITIC_RATING = "critic_rating"
 
 
@@ -145,6 +146,7 @@ _SORT_COLUMNS = {
     / func.nullif(LibraryEntry.achievements_total, 0),
     LibrarySortField.USER_RATING: _OWNER_RATING,
     LibrarySortField.COMMUNITY_RATING: Game.community_rating,
+    LibrarySortField.IGDB_RATING: Game.igdb_rating,
     LibrarySortField.CRITIC_RATING: Game.critic_rating,
 }
 

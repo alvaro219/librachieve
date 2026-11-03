@@ -405,6 +405,11 @@ async def test_filter_by_scores_and_genre(client):
         return sorted(i["game"]["title"] for i in data["data"]["library"]["items"])
 
     assert await titles({"minIgdbRating": 90}) == ["Zelda Test"]
+
+    q = "{ library(sort:{field:IGDB_RATING,direction:DESC}) { items { game { title } } } }"
+    data = (await client.post("/graphql", headers=headers, json={"query": q})).json()
+    order = [i["game"]["title"] for i in data["data"]["library"]["items"]]
+    assert order == ["Zelda Test", "Mario Test", "Doom Test"]  # no score sorts last
     assert await titles({"minCriticRating": 80}) == ["Doom Test", "Zelda Test"]
     assert await titles({"minUserRating": 50}) == ["Mario Test"]
     assert await titles({"genres": ["Adventure"]}) == ["Mario Test", "Zelda Test"]

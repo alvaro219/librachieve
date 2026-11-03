@@ -12,7 +12,8 @@ export type SortField =
   | "ACHIEVEMENTS"
   | "USER_RATING"
   | "COMMUNITY_RATING"
-  | "CRITIC_RATING";
+  | "CRITIC_RATING"
+  | "IGDB_RATING";
 export type SortDirection = "ASC" | "DESC";
 
 export interface LibraryFilter {
