@@ -38,6 +38,7 @@ export default function ImportPage() {
   };
 
   const steamSync = useMutation({ mutationFn: syncApi.steam, onSuccess: onImported });
+  const undo = useMutation({ mutationFn: syncApi.undo, onSuccess: onImported });
   const linkSteam = useMutation({
     mutationFn: authApi.steamLinkUrl,
     onSuccess: ({ url }) => window.location.assign(url),
@@ -197,6 +198,7 @@ export default function ImportPage() {
                 <th className="pb-2 font-medium">Plataforma</th>
                 <th className="pb-2 font-medium">Estado</th>
                 <th className="pb-2 text-right font-medium">Juegos</th>
+                <th className="pb-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -216,21 +218,51 @@ export default function ImportPage() {
                           ? "text-red-400"
                           : j.status === "success"
                             ? "text-emerald-400"
-                            : "text-amber-300"
+                            : j.status === "reverted"
+                              ? "text-slate-400"
+                              : "text-amber-300"
                       }
                     >
-                      {j.status === "failed" ? "✕ " : j.status === "success" ? "✓ " : "⟳ "}
+                      {
+                        { failed: "✕ ", success: "✓ ", reverted: "↶ ", pending: "⟳ ", running: "⟳ " }[
+                          j.status
+                        ]
+                      }
                       {SYNC_STATUS_LABELS[j.status]}
                     </span>
                     {j.error && <p className="text-xs text-slate-500">{j.error}</p>}
                   </td>
                   <td className="text-right tabular-nums">{j.imported_count}</td>
+                  <td className="w-32 py-1 text-right">
+                    {j.undoable && (
+                      <button
+                        type="button"
+                        className="btn-secondary px-3 py-1 text-xs"
+                        disabled={undo.isPending}
+                        onClick={() =>
+                          confirm(
+                            `¿Deshacer esta importación de ${PLATFORM_LABELS[j.platform]}?
+
+` +
+                              "Se quitarán los juegos que añadió y los que ya tenías volverán a su " +
+                              "estado anterior.",
+                          ) && undo.mutate(j.id)
+                        }
+                      >
+                        ↶ Deshacer
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
           <p className="text-sm text-slate-500">Todavía no has importado nada.</p>
+        )}
+        {undo.error && <p className="mt-3 text-sm text-red-400">{undo.error.message}</p>}
+        {undo.isSuccess && !undo.isPending && (
+          <p className="mt-3 text-sm text-slate-400">Importación deshecha.</p>
         )}
       </section>
     </div>

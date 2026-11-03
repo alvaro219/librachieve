@@ -266,3 +266,62 @@ async def test_reimport_applies_file_status_but_keeps_it_when_absent(client):
 
     await upload(b"Nombre\nHades\n")  # no status column: keep what we have
     assert (await status_of("hades"))["status"] == "COMPLETED"
+
+
+async def test_undo_imports_like_a_stack(client):
+    headers = await _register(client)
+    headers.pop("username")
+
+    async def upload(content: str) -> dict:
+        resp = await client.post(
+            "/api/sync/import/gog",
+            headers=headers,
+            files={"file": ("lib.csv", content.encode(), "text/csv")},
+        )
+        assert resp.status_code == 201, resp.text
+        return resp.json()
+
+    async def library() -> dict:
+        q = "{ library { items { status playtimeMinutes isFavorite game { title } } } }"
+        data = (await client.post("/graphql", headers=headers, json={"query": q})).json()
+        return {i["game"]["title"]: i for i in data["data"]["library"]["items"]}
+
+    # A game added by hand must survive every undo
+    await client.post("/api/library", headers=headers, json={"title": "Celeste", "platform": "gog"})
+
+    first = await upload("Nombre,Estado de finalización,Tiempo Jugado\nHades,Not Played,0\n")
+    assert first["undoable"] is True
+    second = await upload(
+        "Nombre,Estado de finalización,Tiempo Jugado,Favorito\n"
+        "Hades,Beaten,7200,Sí\nTunic,Playing,60,No\nCeleste,Completed,600,No\n"
+    )
+    assert set(await library()) == {"Celeste", "Hades", "Tunic"}
+
+    jobs = (await client.get("/api/sync/jobs", headers=headers)).json()
+    assert [j["undoable"] for j in jobs] == [True, False]
+    # Only the newest import can be undone
+    resp = await client.post(f"/api/sync/jobs/{first['id']}/undo", headers=headers)
+    assert resp.status_code == 409
+
+    resp = await client.post(f"/api/sync/jobs/{second['id']}/undo", headers=headers)
+    assert resp.status_code == 200 and resp.json()["status"] == "reverted"
+    lib = await library()
+    assert set(lib) == {"Celeste", "Hades"}  # Tunic was created by the undone import
+    assert lib["Hades"] == {
+        "status": "BACKLOG",
+        "playtimeMinutes": 0,
+        "isFavorite": False,
+        "game": {"title": "Hades"},
+    }
+    assert lib["Celeste"]["status"] == "BACKLOG"  # restored to its manual value
+
+    # Now the first import is the undoable one
+    jobs = (await client.get("/api/sync/jobs", headers=headers)).json()
+    assert [(j["status"], j["undoable"]) for j in jobs] == [("reverted", False), ("success", True)]
+    assert (
+        await client.post(f"/api/sync/jobs/{first['id']}/undo", headers=headers)
+    ).status_code == 200
+    assert set(await library()) == {"Celeste"}
+    assert (
+        await client.post(f"/api/sync/jobs/{first['id']}/undo", headers=headers)
+    ).status_code == 409

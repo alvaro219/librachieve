@@ -30,6 +30,7 @@ class SyncJobStatus(enum.StrEnum):
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"
+    REVERTED = "reverted"  # a file import the user undid
 
 
 def pg_enum(enum_cls: type[enum.Enum], name: str) -> Enum:

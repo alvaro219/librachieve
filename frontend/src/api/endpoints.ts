@@ -54,4 +54,5 @@ export const syncApi = {
     return api<SyncJob>(`/api/sync/import/${platform}`, { form });
   },
   jobs: () => api<SyncJob[]>("/api/sync/jobs"),
+  undo: (id: number) => api<SyncJob>(`/api/sync/jobs/${id}/undo`, { method: "POST" }),
 };

@@ -87,7 +87,7 @@ async def add_to_library(
         game = await get_or_create_game(db, body.title)
         needs_enrichment = game.metadata_updated_at is None
 
-    entry, created = await upsert_library_entry(
+    entry, created, _ = await upsert_library_entry(
         db,
         user_id=user.id,
         game=game,

@@ -63,13 +63,14 @@ async def upsert_library_entry(
     playtime_minutes: int = 0,
     last_played_at: datetime | None = None,
     status: GameStatus | None = None,
-) -> tuple[LibraryEntry, bool]:
+) -> tuple[LibraryEntry, bool, dict | None]:
     """Insert or refresh an entry.
 
     Re-syncs update playtime. The status is only changed when the source provides one (an
     imported file with a status column); Steam syncs carry none, so they never touch it.
 
-    Returns (entry, created).
+    Returns (entry, created, previous): `previous` holds the values before this call for an
+    existing entry (used to undo file imports), None for a new one.
     """
     entry = await db.scalar(
         select(LibraryEntry).where(
@@ -89,7 +90,15 @@ async def upsert_library_entry(
         )
         db.add(entry)
         await db.flush()
-        return entry, True
+        return entry, True, None
+
+    previous = {
+        "status": entry.status,
+        "playtime_minutes": entry.playtime_minutes,
+        "last_played_at": entry.last_played_at,
+        "is_favorite": entry.is_favorite,
+        "custom_folder": entry.custom_folder,
+    }
 
     entry.playtime_minutes = max(entry.playtime_minutes, playtime_minutes)
     if status is not None:
@@ -98,4 +107,4 @@ async def upsert_library_entry(
             entry.custom_folder = None
     if last_played_at and (entry.last_played_at is None or last_played_at > entry.last_played_at):
         entry.last_played_at = last_played_at
-    return entry, False
+    return entry, False, previous

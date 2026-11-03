@@ -35,6 +35,7 @@ export const SYNC_STATUS_LABELS: Record<SyncJobStatus, string> = {
   running: "En curso",
   success: "Completada",
   failed: "Fallida",
+  reverted: "Deshecha",
 };
 
 export function formatPlaytime(minutes: number): string {

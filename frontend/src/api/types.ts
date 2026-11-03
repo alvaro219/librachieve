@@ -3,7 +3,7 @@
 export type UserRole = "user" | "admin";
 export type GameStatus = "backlog" | "playing" | "completed" | "dropped" | "wishlist" | "other";
 export type Platform = "steam" | "epic" | "gog" | "amazon" | "other";
-export type SyncJobStatus = "pending" | "running" | "success" | "failed";
+export type SyncJobStatus = "pending" | "running" | "success" | "failed" | "reverted";
 
 export interface TokenResponse {
   access_token: string;
@@ -126,4 +126,6 @@ export interface SyncJob {
   error: string | null;
   created_at: string;
   finished_at: string | null;
+  /** Only the newest completed file import can be undone */
+  undoable: boolean;
 }
