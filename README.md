@@ -1,3 +1,5 @@
+<p align="center"><img src="frontend/public/logo-320.webp" alt="Librachieve" width="200"></p>
+
 # Librachieve
 
 Gestor de biblioteca personal de videojuegos: importa tus juegos de Steam, Epic, GOG y Amazon, organízalos por categorías y consulta tus estadísticas.

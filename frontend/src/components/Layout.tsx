@@ -16,7 +16,12 @@ export default function Layout() {
       <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-3">
           <Link to="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
-            <img src="/favicon.svg" alt="" className="h-7 w-7" />
+            <img
+              src="/logo-160.webp"
+              srcSet="/logo-160.webp 1x, /logo-320.webp 2x"
+              alt=""
+              className="h-9 w-9 rounded-lg"
+            />
             Librachieve
           </Link>
           {user && (

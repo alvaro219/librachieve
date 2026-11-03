@@ -5,6 +5,8 @@ import { defineConfig } from "vite";
 // The browser only ever talks to the Vite origin; /api and /graphql are proxied to FastAPI.
 // This keeps the refresh-token cookie first-party and avoids CORS in development.
 const apiTarget = process.env.VITE_API_PROXY ?? "http://localhost:8000";
+// Absolute site URL for social previews (index.html og:image). Production builds pass it in.
+process.env.VITE_SITE_URL ??= "http://localhost:5173";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

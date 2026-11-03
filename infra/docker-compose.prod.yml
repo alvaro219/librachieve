@@ -61,6 +61,8 @@ services:
     build:
       context: ../frontend
       target: web
+      args:
+        VITE_SITE_URL: https://${DOMAIN:?set DOMAIN in .env}
     environment:
       SITE_ADDRESS: ${DOMAIN:?set DOMAIN in .env}
     restart: unless-stopped
