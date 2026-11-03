@@ -29,7 +29,7 @@ API_URL = "https://api.igdb.com/v4"
 COVER_URL = "https://images.igdb.com/igdb/image/upload/t_cover_big/{image_id}.jpg"
 FIELDS = (
     "fields name,summary,first_release_date,cover.image_id,genres.name,"
-    "total_rating_count,game_type;"
+    "total_rating_count,game_type,rating,rating_count,aggregated_rating,aggregated_rating_count;"
 )
 STEAM_SOURCE = 1  # external_game_source id for Steam
 # game_type: 0 main game, 8 remake, 9 remaster, 10 expanded game, 11 port
@@ -107,6 +107,10 @@ def _to_result(raw: dict) -> IgdbSearchResult:
         release_date=datetime.fromtimestamp(ts, UTC).date() if ts else None,
         genres=[g["name"] for g in raw.get("genres") or [] if "name" in g],
         summary=raw.get("summary"),
+        igdb_rating=raw.get("rating"),
+        igdb_rating_count=raw.get("rating_count"),
+        critic_rating=raw.get("aggregated_rating"),
+        critic_rating_count=raw.get("aggregated_rating_count"),
     )
 
 
@@ -223,6 +227,10 @@ def apply_metadata(game: Game, meta: IgdbSearchResult) -> None:
     game.summary = meta.summary or game.summary
     game.release_date = meta.release_date or game.release_date
     game.genres = meta.genres or game.genres
+    game.igdb_rating = meta.igdb_rating
+    game.igdb_rating_count = meta.igdb_rating_count
+    game.critic_rating = meta.critic_rating
+    game.critic_rating_count = meta.critic_rating_count
     game.metadata_updated_at = datetime.now(UTC).replace(tzinfo=None)
 
 

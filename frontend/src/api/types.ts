@@ -63,6 +63,21 @@ export interface Game {
   summary: string | null;
   release_date: string | null;
   genres: string[];
+  /** IGDB users, 0-100 */
+  igdb_rating: number | null;
+  igdb_rating_count: number | null;
+  /** Critics (IGDB aggregated rating), 0-100 */
+  critic_rating: number | null;
+  critic_rating_count: number | null;
+  /** Average of Librachieve users, 0-100 */
+  community_rating: number | null;
+  community_rating_count: number;
+}
+
+export interface RatingResult {
+  score: number | null;
+  community_rating: number | null;
+  community_rating_count: number;
 }
 
 export interface IgdbSearchResult {
@@ -85,6 +100,8 @@ export interface LibraryEntry {
   added_at: string;
   achievements_unlocked: number;
   achievements_total: number;
+  /** The library owner's 0-100 score for this game */
+  user_rating: number | null;
   game: Game;
 }
 

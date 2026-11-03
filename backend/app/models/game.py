@@ -21,5 +21,13 @@ class Game(Base):
     summary: Mapped[str | None] = mapped_column(Text)
     release_date: Mapped[date | None]
     genres: Mapped[list[str]] = mapped_column(ARRAY(String(64)), default=list, server_default="{}")
+    # Scores (0-100). IGDB: "rating" = its users, "aggregated_rating" = critics.
+    # community_* = average of Librachieve users, kept up to date when someone rates.
+    igdb_rating: Mapped[float | None]
+    igdb_rating_count: Mapped[int | None]
+    critic_rating: Mapped[float | None]
+    critic_rating_count: Mapped[int | None]
+    community_rating: Mapped[float | None]
+    community_rating_count: Mapped[int] = mapped_column(default=0, server_default="0")
     metadata_updated_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

@@ -18,6 +18,7 @@ Librachieve is a full-stack web application for personal video game library mana
 3. **Library management:** games are categorized into — Backlog, Playing, Completed, Dropped, Wishlist, Other (free-form folder, `custom_folder`).
 4. **User stats:** playtime tracking, completion ratio, most played genres, games per platform, achievements (unlocked/total, 100% games).
 6. **Achievements:** Steam achievements via the official Web API (`app/services/achievements.py`): schema in Spanish (`l=spanish`) + global % refreshed weekly per game, player unlocks on every Steam sync (played games only). Counters are denormalised on `library_entries`.
+7. **Ratings (like Playnite):** your 0-100 score per game (`game_ratings`, one per game across stores), Librachieve users average (`games.community_rating`, recomputed on every vote), IGDB community (`igdb_rating`) and critics (`critic_rating`, IGDB aggregated). Filter/sort by any of them; filter by genre.
 5. **User profiles:** public/private toggle. JWT-based auth with role support (user / admin).
 
 ## Project Structure
@@ -55,6 +56,9 @@ docker compose -f infra/docker-compose.yml run --rm backend alembic revision --a
 
 # Re-run IGDB matching (--all resets every game's metadata first)
 docker compose -f infra/docker-compose.yml exec backend python -m app.cli reenrich [--all]
+
+# Re-download IGDB metadata (covers, ratings…) keeping existing matches
+docker compose -f infra/docker-compose.yml exec backend python -m app.cli refresh-metadata
 
 # Make a user admin
 docker compose -f infra/docker-compose.yml exec backend python -m app.cli make-admin <username>

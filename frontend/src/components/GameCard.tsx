@@ -1,6 +1,7 @@
 import type { LibraryEntry } from "../api/types";
 import { STATUS_LABELS, formatPlaytime } from "../lib/labels";
 import PlatformIcon from "./PlatformIcon";
+import { scoreTone } from "./Ratings";
 
 interface Props {
   entry: LibraryEntry;
@@ -31,6 +32,14 @@ export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
           <div className="flex h-full items-center justify-center p-4 text-center text-sm font-semibold text-slate-400">
             {game.title}
           </div>
+        )}
+        {entry.user_rating !== null && (
+          <span
+            title={`Tu nota: ${entry.user_rating}`}
+            className={`absolute bottom-2 right-2 rounded-md border bg-slate-950/85 px-1.5 py-0.5 text-sm font-bold tabular-nums ${scoreTone(entry.user_rating)}`}
+          >
+            {entry.user_rating}
+          </span>
         )}
         <span className="absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/80 text-slate-100">
           <PlatformIcon platform={entry.platform} className="h-[18px] w-[18px]" />

@@ -11,7 +11,7 @@ from strawberry.fastapi import BaseContext, GraphQLRouter
 
 from app.db.session import get_db
 from app.deps import user_from_token
-from app.models import Game, LibraryEntry, User
+from app.models import Game, GameRating, LibraryEntry, User
 from app.models import GameStatus as GameStatusModel
 from app.models import Platform as PlatformModel
 from app.routers.users import get_visible_user
@@ -29,6 +29,9 @@ class LibrarySortField(enum.Enum):
     LAST_PLAYED = "last_played"
     RELEASE_DATE = "release_date"
     ACHIEVEMENTS = "achievements"
+    USER_RATING = "user_rating"
+    COMMUNITY_RATING = "community_rating"
+    CRITIC_RATING = "critic_rating"
 
 
 @strawberry.enum
@@ -47,6 +50,12 @@ class GameType:
     summary: str | None
     release_date: date | None
     genres: list[str]
+    igdb_rating: float | None
+    igdb_rating_count: int | None
+    critic_rating: float | None
+    critic_rating_count: int | None
+    community_rating: float | None
+    community_rating_count: int
 
 
 @strawberry.type
@@ -61,6 +70,7 @@ class LibraryEntryType:
     added_at: datetime
     achievements_unlocked: int
     achievements_total: int
+    user_rating: int | None = strawberry.field(description="The library owner's 0-100 score")
     game: GameType
 
 
@@ -84,6 +94,17 @@ class LibraryFilter:
     max_playtime_minutes: int | None = None
     released_after: date | None = None
     released_before: date | None = None
+    # Minimum 0-100 scores; entries without that score are excluded
+    min_user_rating: int | None = None
+    min_community_rating: int | None = None
+    min_igdb_rating: int | None = None
+    min_critic_rating: int | None = None
+
+
+@strawberry.type
+class GenreCount:
+    genre: str
+    games: int
 
 
 @strawberry.input
@@ -105,6 +126,13 @@ async def get_context(request: Request, db: AsyncSession = Depends(get_db)) -> C
     return Context(db, await user_from_token(db, token))
 
 
+# The library owner's score for the entry's game (correlated to the outer LibraryEntry row)
+_OWNER_RATING = (
+    select(GameRating.score)
+    .where(GameRating.user_id == LibraryEntry.user_id, GameRating.game_id == LibraryEntry.game_id)
+    .scalar_subquery()
+)
+
 _SORT_COLUMNS = {
     LibrarySortField.TITLE: Game.normalized_title,
     LibrarySortField.PLAYTIME: LibraryEntry.playtime_minutes,
@@ -115,6 +143,9 @@ _SORT_COLUMNS = {
     LibrarySortField.ACHIEVEMENTS: LibraryEntry.achievements_unlocked
     * 1.0
     / func.nullif(LibraryEntry.achievements_total, 0),
+    LibrarySortField.USER_RATING: _OWNER_RATING,
+    LibrarySortField.COMMUNITY_RATING: Game.community_rating,
+    LibrarySortField.CRITIC_RATING: Game.critic_rating,
 }
 
 
@@ -141,10 +172,18 @@ def apply_filter(stmt: Select, f: LibraryFilter | None) -> Select:
         stmt = stmt.where(Game.release_date >= f.released_after)
     if f.released_before:
         stmt = stmt.where(Game.release_date <= f.released_before)
+    if f.min_user_rating is not None:
+        stmt = stmt.where(_OWNER_RATING >= f.min_user_rating)
+    if f.min_community_rating is not None:
+        stmt = stmt.where(Game.community_rating >= f.min_community_rating)
+    if f.min_igdb_rating is not None:
+        stmt = stmt.where(Game.igdb_rating >= f.min_igdb_rating)
+    if f.min_critic_rating is not None:
+        stmt = stmt.where(Game.critic_rating >= f.min_critic_rating)
     return stmt
 
 
-def _to_type(e: LibraryEntry) -> LibraryEntryType:
+def _to_type(e: LibraryEntry, user_rating: int | None = None) -> LibraryEntryType:
     g = e.game
     return LibraryEntryType(
         id=e.id,
@@ -157,6 +196,7 @@ def _to_type(e: LibraryEntry) -> LibraryEntryType:
         added_at=e.added_at,
         achievements_unlocked=e.achievements_unlocked,
         achievements_total=e.achievements_total,
+        user_rating=user_rating,
         game=GameType(
             id=g.id,
             title=g.title,
@@ -166,6 +206,12 @@ def _to_type(e: LibraryEntry) -> LibraryEntryType:
             summary=g.summary,
             release_date=g.release_date,
             genres=list(g.genres or []),
+            igdb_rating=g.igdb_rating,
+            igdb_rating_count=g.igdb_rating_count,
+            critic_rating=g.critic_rating,
+            critic_rating_count=g.critic_rating_count,
+            community_rating=g.community_rating,
+            community_rating_count=g.community_rating_count,
         ),
     )
 
@@ -209,7 +255,50 @@ class Query:
         rows = await ctx.db.scalars(
             base.order_by(order, LibraryEntry.id).limit(limit).offset(max(offset, 0))
         )
-        return LibraryPageType(items=[_to_type(e) for e in rows.unique()], total=total or 0)
+        entries = list(rows.unique())
+        ratings = dict(
+            (
+                await ctx.db.execute(
+                    select(GameRating.game_id, GameRating.score).where(
+                        GameRating.user_id == owner.id,
+                        GameRating.game_id.in_({e.game_id for e in entries}),
+                    )
+                )
+            ).all()
+        )
+        return LibraryPageType(
+            items=[_to_type(e, ratings.get(e.game_id)) for e in entries], total=total or 0
+        )
+
+    @strawberry.field(
+        description="Genres in a library (yours, or a public user's), most common first"
+    )
+    async def genres(
+        self, info: strawberry.Info[Context, None], username: str | None = None
+    ) -> list[GenreCount]:
+        ctx = info.context
+        if username:
+            try:
+                owner = await get_visible_user(ctx.db, username, ctx.user)
+            except HTTPException as e:
+                raise PermissionError("User not found") from e
+        elif ctx.user is None:
+            raise PermissionError("Not authenticated")
+        else:
+            owner = ctx.user
+        genre = func.unnest(Game.genres).label("genre")
+        sub = (
+            select(genre, LibraryEntry.game_id)
+            .join(Game, Game.id == LibraryEntry.game_id)
+            .where(LibraryEntry.user_id == owner.id)
+            .subquery()
+        )
+        rows = await ctx.db.execute(
+            select(sub.c.genre, func.count(func.distinct(sub.c.game_id)))
+            .group_by(sub.c.genre)
+            .order_by(func.count(func.distinct(sub.c.game_id)).desc(), sub.c.genre)
+        )
+        return [GenreCount(genre=g, games=n) for g, n in rows.all()]
 
     @strawberry.field(description="Distinct custom folder names used in your 'Other' category")
     async def custom_folders(self, info: strawberry.Info[Context, None]) -> list[str]:

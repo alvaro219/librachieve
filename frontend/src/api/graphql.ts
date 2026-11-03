@@ -9,7 +9,10 @@ export type SortField =
   | "ADDED_AT"
   | "LAST_PLAYED"
   | "RELEASE_DATE"
-  | "ACHIEVEMENTS";
+  | "ACHIEVEMENTS"
+  | "USER_RATING"
+  | "COMMUNITY_RATING"
+  | "CRITIC_RATING";
 export type SortDirection = "ASC" | "DESC";
 
 export interface LibraryFilter {
@@ -23,6 +26,10 @@ export interface LibraryFilter {
   maxPlaytimeMinutes?: number;
   releasedAfter?: string;
   releasedBefore?: string;
+  minUserRating?: number;
+  minCommunityRating?: number;
+  minIgdbRating?: number;
+  minCriticRating?: number;
 }
 
 export interface LibraryQueryVariables {
@@ -72,6 +79,7 @@ const LIBRARY_QUERY = /* GraphQL */ `
         addedAt
         achievementsUnlocked
         achievementsTotal
+        userRating
         game {
           id
           title
@@ -81,6 +89,12 @@ const LIBRARY_QUERY = /* GraphQL */ `
           summary
           releaseDate
           genres
+          igdbRating
+          igdbRatingCount
+          criticRating
+          criticRatingCount
+          communityRating
+          communityRatingCount
         }
       }
     }
@@ -98,6 +112,7 @@ interface GqlEntry {
   addedAt: string;
   achievementsUnlocked: number;
   achievementsTotal: number;
+  userRating: number | null;
   game: {
     id: number;
     title: string;
@@ -107,6 +122,12 @@ interface GqlEntry {
     summary: string | null;
     releaseDate: string | null;
     genres: string[];
+    igdbRating: number | null;
+    igdbRatingCount: number | null;
+    criticRating: number | null;
+    criticRatingCount: number | null;
+    communityRating: number | null;
+    communityRatingCount: number;
   };
 }
 
@@ -123,6 +144,7 @@ function toEntry(e: GqlEntry): LibraryEntry {
     added_at: e.addedAt,
     achievements_unlocked: e.achievementsUnlocked,
     achievements_total: e.achievementsTotal,
+    user_rating: e.userRating,
     game: {
       id: e.game.id,
       title: e.game.title,
@@ -132,6 +154,12 @@ function toEntry(e: GqlEntry): LibraryEntry {
       summary: e.game.summary,
       release_date: e.game.releaseDate,
       genres: e.game.genres,
+      igdb_rating: e.game.igdbRating,
+      igdb_rating_count: e.game.igdbRatingCount,
+      critic_rating: e.game.criticRating,
+      critic_rating_count: e.game.criticRatingCount,
+      community_rating: e.game.communityRating,
+      community_rating_count: e.game.communityRatingCount,
     },
   };
 }
@@ -150,6 +178,19 @@ export async function fetchLibrary(vars: LibraryQueryVariables): Promise<Library
     offset: vars.offset ?? 0,
   });
   return { total: data.library.total, items: data.library.items.map(toEntry) };
+}
+
+export interface GenreCount {
+  genre: string;
+  games: number;
+}
+
+export async function fetchGenres(username?: string): Promise<GenreCount[]> {
+  const data = await gql<{ genres: GenreCount[] }>(
+    "query($u: String) { genres(username: $u) { genre games } }",
+    { u: username },
+  );
+  return data.genres;
 }
 
 export async function fetchCustomFolders(): Promise<string[]> {

@@ -4,6 +4,7 @@ import type { LibraryEntry } from "../api/types";
 import AchievementList from "./AchievementList";
 import { GameHeader, GameTabs, type GameTab } from "./GameHeader";
 import Modal from "./Modal";
+import { RatingSummary } from "./Ratings";
 
 /** Read-only game view, used on public profiles. */
 export default function GameDetail({ entry, onClose }: { entry: LibraryEntry; onClose: () => void }) {
@@ -13,7 +14,10 @@ export default function GameDetail({ entry, onClose }: { entry: LibraryEntry; on
       <GameHeader entry={entry} />
       <GameTabs entry={entry} tab={tab} onChange={setTab} />
       {tab === "details" ? (
-        <p className="text-sm text-slate-300">{entry.game.summary ?? "Sin descripción."}</p>
+        <div className="space-y-4">
+          <RatingSummary game={entry.game} userRating={entry.user_rating} ownerLabel="Su nota" />
+          <p className="text-sm text-slate-300">{entry.game.summary ?? "Sin descripción."}</p>
+        </div>
       ) : (
         <AchievementList entryId={entry.id} />
       )}

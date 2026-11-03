@@ -6,6 +6,7 @@ import type {
   LibraryEntryCreate,
   LibraryEntryUpdate,
   Platform,
+  RatingResult,
   SyncJob,
   TokenResponse,
   UserMe,
@@ -42,6 +43,10 @@ export const libraryApi = {
 };
 
 export const gamesApi = {
+  rate: (gameId: number, score: number) =>
+    api<RatingResult>(`/api/games/${gameId}/rating`, { method: "PUT", json: { score } }),
+  unrate: (gameId: number) =>
+    api<RatingResult>(`/api/games/${gameId}/rating`, { method: "DELETE" }),
   search: (q: string) =>
     api<IgdbSearchResult[]>(`/api/games/search?${new URLSearchParams({ q, limit: "8" })}`),
 };

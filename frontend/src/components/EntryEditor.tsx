@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { libraryApi } from "../api/endpoints";
+import { gamesApi, libraryApi } from "../api/endpoints";
 import type { GameStatus, LibraryEntry } from "../api/types";
 import { STATUS_LABELS, STATUS_ORDER } from "../lib/labels";
 import AchievementList from "./AchievementList";
 import { GameHeader, GameTabs, type GameTab } from "./GameHeader";
 import FolderPicker from "./FolderPicker";
 import Modal from "./Modal";
+import { RatingInput, RatingSummary } from "./Ratings";
 
 interface Props {
   entry: LibraryEntry;
@@ -20,6 +21,7 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
   const [status, setStatus] = useState<GameStatus>(entry.status);
   const [folder, setFolder] = useState(entry.custom_folder ?? "");
   const [tab, setTab] = useState<GameTab>("details");
+  const [rating, setRating] = useState<number | null>(entry.user_rating);
   const [hours, setHours] = useState(String(Math.round((entry.playtime_minutes / 60) * 10) / 10));
 
   const invalidate = () => {
@@ -29,12 +31,19 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
   };
 
   const save = useMutation({
-    mutationFn: () =>
-      libraryApi.update(entry.id, {
+    mutationFn: async () => {
+      await libraryApi.update(entry.id, {
         status,
         custom_folder: status === "other" ? folder.trim() || null : null,
         playtime_minutes: Math.max(0, Math.round(parseFloat(hours.replace(",", ".")) * 60) || 0),
-      }),
+      });
+      // The score belongs to the game (shared by all its store entries), so it has its own call
+      if (rating !== entry.user_rating) {
+        await (rating === null
+          ? gamesApi.unrate(entry.game.id)
+          : gamesApi.rate(entry.game.id, rating));
+      }
+    },
     onSuccess: () => {
       invalidate();
       onClose();
@@ -61,6 +70,9 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
       ) : (
         <>
       {game.summary && <p className="mb-5 line-clamp-4 text-sm text-slate-300">{game.summary}</p>}
+      <div className="mb-5">
+        <RatingSummary game={game} userRating={rating} />
+      </div>
 
       <form
         className="space-y-4"
@@ -92,6 +104,8 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
         {status === "other" && (
           <FolderPicker value={folder} folders={folders} onChange={setFolder} />
         )}
+
+        <RatingInput value={rating} onChange={setRating} />
 
         <label className="block text-sm">
           <span className="mb-1 block text-slate-300">Horas jugadas</span>

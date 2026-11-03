@@ -127,3 +127,20 @@ def test_name_only_file():
         ("Hades", 0, None),
         ("Celeste", 0, None),
     ]
+
+
+def test_igdb_result_carries_user_and_critic_scores():
+    from app.services.igdb import _to_result
+
+    r = _to_result(
+        {
+            "id": 1,
+            "name": "Hades",
+            "rating": 92.4,
+            "rating_count": 1500,
+            "aggregated_rating": 93.1,
+            "aggregated_rating_count": 40,
+        }
+    )
+    assert (r.igdb_rating, r.igdb_rating_count) == (92.4, 1500)
+    assert (r.critic_rating, r.critic_rating_count) == (93.1, 40)

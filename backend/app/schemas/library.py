@@ -19,6 +19,8 @@ class LibraryEntryOut(BaseModel):
     added_at: datetime
     achievements_unlocked: int
     achievements_total: int
+    # The library owner's score for this game (set by the routes that know it)
+    user_rating: int | None = None
     game: GameOut
 
 

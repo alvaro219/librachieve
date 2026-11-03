@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import {
   fetchCustomFolders,
+  fetchGenres,
   fetchLibrary,
   type LibraryFilter,
   type SortDirection,
@@ -18,6 +19,25 @@ import GameCard from "./GameCard";
 
 const PAGE_SIZE = 60;
 
+type RatingSource = "igdb" | "community" | "critic" | "user";
+
+// Same labels as the score tiles in the game view
+const RATING_SOURCES: { value: RatingSource; label: string }[] = [
+  { value: "igdb", label: "la comunidad" },
+  { value: "community", label: "los usuarios" },
+  { value: "critic", label: "la crítica" },
+  { value: "user", label: "mi nota" },
+];
+
+const RATING_FILTER_KEYS = {
+  igdb: "minIgdbRating",
+  community: "minCommunityRating",
+  critic: "minCriticRating",
+  user: "minUserRating",
+} as const satisfies Record<RatingSource, keyof LibraryFilter>;
+
+const MIN_RATINGS = [50, 60, 70, 75, 80, 90];
+
 const SORTS: { value: `${SortField}:${SortDirection}`; label: string }[] = [
   { value: "TITLE:ASC", label: "Título (A-Z)" },
   { value: "PLAYTIME:DESC", label: "Más jugados" },
@@ -25,6 +45,9 @@ const SORTS: { value: `${SortField}:${SortDirection}`; label: string }[] = [
   { value: "ADDED_AT:DESC", label: "Añadidos recientemente" },
   { value: "RELEASE_DATE:DESC", label: "Lanzamiento (nuevos)" },
   { value: "ACHIEVEMENTS:DESC", label: "Más logros (%)" },
+  { value: "USER_RATING:DESC", label: "Mi nota" },
+  { value: "COMMUNITY_RATING:DESC", label: "Nota de usuarios" },
+  { value: "CRITIC_RATING:DESC", label: "Nota de la crítica" },
 ];
 
 interface Props {
@@ -38,6 +61,9 @@ export default function LibraryBrowser({ username }: Props) {
   const [folder, setFolder] = useState<string | null>(null);
   const [platform, setPlatform] = useState<Platform | "">("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [genre, setGenre] = useState("");
+  const [minRating, setMinRating] = useState<number | null>(null);
+  const [ratingSource, setRatingSource] = useState<RatingSource>("igdb");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<(typeof SORTS)[number]["value"]>("TITLE:ASC");
@@ -52,7 +78,10 @@ export default function LibraryBrowser({ username }: Props) {
   }, [searchInput]);
 
   // Any filter change goes back to the first page.
-  useEffect(() => setPage(0), [status, folder, platform, favoritesOnly, search, sort]);
+  useEffect(
+    () => setPage(0),
+    [status, folder, platform, favoritesOnly, genre, minRating, ratingSource, search, sort],
+  );
 
   const filter: LibraryFilter = {
     statuses: status ? [status] : undefined,
@@ -60,6 +89,8 @@ export default function LibraryBrowser({ username }: Props) {
     search: search || undefined,
     favoritesOnly: favoritesOnly || undefined,
     customFolder: status === "other" && folder ? folder : undefined,
+    genres: genre ? [genre] : undefined,
+    ...(minRating !== null ? { [RATING_FILTER_KEYS[ratingSource]]: minRating } : {}),
   };
   const [field, direction] = sort.split(":") as [SortField, SortDirection];
 
@@ -74,6 +105,11 @@ export default function LibraryBrowser({ username }: Props) {
         offset: page * PAGE_SIZE,
       }),
     placeholderData: keepPreviousData,
+  });
+
+  const genres = useQuery({
+    queryKey: ["genres", username ?? "me"],
+    queryFn: () => fetchGenres(username),
   });
 
   const folders = useQuery({
@@ -165,6 +201,46 @@ export default function LibraryBrowser({ username }: Props) {
         >
           {favoritesOnly ? "★" : "☆"} Favoritos
         </button>
+        <select
+          className="input w-auto max-w-[14rem]"
+          value={genre}
+          onChange={(e) => setGenre(e.target.value)}
+          aria-label="Género"
+        >
+          <option value="">Todos los géneros</option>
+          {genres.data?.map((g) => (
+            <option key={g.genre} value={g.genre}>
+              {g.genre} ({g.games})
+            </option>
+          ))}
+        </select>
+        <select
+          className="input w-auto"
+          value={minRating ?? ""}
+          onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : null)}
+          aria-label="Nota mínima"
+        >
+          <option value="">Cualquier nota</option>
+          {MIN_RATINGS.map((n) => (
+            <option key={n} value={n}>
+              Nota {n}+
+            </option>
+          ))}
+        </select>
+        {minRating !== null && (
+          <select
+            className="input w-auto"
+            value={ratingSource}
+            onChange={(e) => setRatingSource(e.target.value as RatingSource)}
+            aria-label="Fuente de la nota"
+          >
+            {RATING_SOURCES.map((r) => (
+              <option key={r.value} value={r.value}>
+                de {r.label}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           className="input w-auto"
           value={sort}

@@ -100,6 +100,16 @@ async def enrich_games(ctx: dict, game_ids: list[int]) -> int:
         except httpx.HTTPError as e:
             logger.warning("IGDB Steam batch lookup failed, falling back to titles: %s", e)
 
+        # Games already matched to IGDB: refresh their metadata (incl. ratings) in batches too.
+        known = [g for g in games if g.igdb_id and g.id not in prefetched]
+        try:
+            metas = await igdb.get_many(redis_client, [g.igdb_id for g in known])
+            for g in known:
+                if g.igdb_id in metas:
+                    prefetched[g.id] = metas[g.igdb_id]
+        except httpx.HTTPError as e:
+            logger.warning("IGDB batch refresh failed, falling back to one by one: %s", e)
+
         for game in games:
             try:
                 if game.id not in prefetched:

@@ -325,3 +325,97 @@ async def test_undo_imports_like_a_stack(client):
     assert (
         await client.post(f"/api/sync/jobs/{first['id']}/undo", headers=headers)
     ).status_code == 409
+
+
+async def test_ratings_and_community_average(client):
+    alice = await _register(client)
+    alice.pop("username")
+    bob = await _register(client)
+    bob.pop("username")
+    carol = await _register(client)
+    carol.pop("username")
+
+    hades = (await client.post("/api/library", headers=alice, json={"title": "Hades"})).json()
+    game_id = hades["game"]["id"]
+    await client.post("/api/library", headers=alice, json={"title": "Celeste"})
+    await client.post("/api/library", headers=bob, json={"game_id": game_id, "platform": "epic"})
+
+    # Range is enforced, and you can only rate games in your library
+    bad = await client.put(f"/api/games/{game_id}/rating", headers=alice, json={"score": 101})
+    assert bad.status_code == 422
+    resp = await client.put(f"/api/games/{game_id}/rating", headers=carol, json={"score": 50})
+    assert resp.status_code == 404
+
+    resp = await client.put(f"/api/games/{game_id}/rating", headers=alice, json={"score": 90})
+    assert resp.json() == {"score": 90, "community_rating": 90.0, "community_rating_count": 1}
+    resp = await client.put(f"/api/games/{game_id}/rating", headers=bob, json={"score": 75})
+    assert resp.json()["community_rating"] == 82.5
+    resp = await client.put(f"/api/games/{game_id}/rating", headers=alice, json={"score": 80})
+    assert resp.json()["community_rating"] == 77.5  # re-rating replaces, not adds
+
+    q = """{ library(sort:{field:USER_RATING,direction:DESC}) {
+              items { userRating game { title communityRating communityRatingCount } } } }"""
+    data = (await client.post("/graphql", headers=alice, json={"query": q})).json()
+    items = data["data"]["library"]["items"]
+    assert items[0] == {
+        "userRating": 80,
+        "game": {"title": "Hades", "communityRating": 77.5, "communityRatingCount": 2},
+    }
+    assert items[1]["userRating"] is None  # Celeste, unrated, sorts last
+
+    resp = await client.delete(f"/api/games/{game_id}/rating", headers=bob)
+    assert resp.json() == {"score": None, "community_rating": 80.0, "community_rating_count": 1}
+
+
+async def test_filter_by_scores_and_genre(client):
+    from sqlalchemy import update
+
+    from app.db.session import SessionLocal
+    from app.models import Game
+
+    headers = await _register(client)
+    headers.pop("username")
+    ids = {}
+    for title in ("Zelda Test", "Mario Test", "Doom Test"):
+        resp = await client.post("/api/library", headers=headers, json={"title": title})
+        ids[title] = resp.json()["game"]["id"]
+
+    async with SessionLocal() as db:
+        meta = {
+            "Zelda Test": (["Adventure", "RPG"], 95, 97),
+            "Mario Test": (["Platform", "Adventure"], 80, 70),
+            "Doom Test": (["Shooter"], None, 88),
+        }
+        for title, (genres, igdb, critic) in meta.items():
+            await db.execute(
+                update(Game)
+                .where(Game.id == ids[title])
+                .values(genres=genres, igdb_rating=igdb, critic_rating=critic)
+            )
+        await db.commit()
+    await client.put(f"/api/games/{ids['Mario Test']}/rating", headers=headers, json={"score": 60})
+
+    async def titles(filter_: dict) -> list[str]:
+        q = "query($f: LibraryFilter) { library(filter: $f) { items { game { title } } } }"
+        resp = await client.post(
+            "/graphql", headers=headers, json={"query": q, "variables": {"f": filter_}}
+        )
+        data = resp.json()
+        assert "errors" not in data, data
+        return sorted(i["game"]["title"] for i in data["data"]["library"]["items"])
+
+    assert await titles({"minIgdbRating": 90}) == ["Zelda Test"]
+    assert await titles({"minCriticRating": 80}) == ["Doom Test", "Zelda Test"]
+    assert await titles({"minUserRating": 50}) == ["Mario Test"]
+    assert await titles({"genres": ["Adventure"]}) == ["Mario Test", "Zelda Test"]
+    assert await titles({"genres": ["Adventure"], "minCriticRating": 90}) == ["Zelda Test"]
+
+    q = "{ genres { genre games } }"
+    data = (await client.post("/graphql", headers=headers, json={"query": q})).json()
+    assert data["data"]["genres"][0] == {"genre": "Adventure", "games": 2}
+    assert {g["genre"] for g in data["data"]["genres"]} == {
+        "Adventure",
+        "RPG",
+        "Platform",
+        "Shooter",
+    }
