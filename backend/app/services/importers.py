@@ -3,9 +3,15 @@
 Accepted shapes (keys are case-insensitive):
 - JSON: a list of objects, or {"games": [...]}
 - CSV: a header row
-Recognised columns: title|name|game, playtime_minutes|playtime|minutes,
-playtime_seconds, playtime_hours|hours, status, last_played, favorite,
-source|sourcename|store|platform (per-row store, e.g. Playnite exports) and steamappid.
+Only a title column is required; every other column is optional and applied when present.
+Column names are matched in English and Spanish (Playnite exports use the UI language):
+- title: title | name | game | nombre | título | juego
+- playtime: playtime_minutes | playtime | minutes  (minutes)
+            playtime_seconds | seconds | tiempo jugado | time played  (seconds, as Playnite)
+            playtime_hours | hours | horas  (hours)
+- status: status | estado | completion status | estado de finalización
+- store per row: source | sourcename | store | platform | fuente | origen | plataforma | tienda
+- last_played | last activity | última actividad, favorite | favorito, steamappid
 """
 
 import csv
@@ -18,11 +24,50 @@ from app.models.enums import GameStatus, Platform
 
 MAX_ROWS = 10_000
 
-_TITLE_KEYS = ("title", "name", "game", "game_name", "product_title")
-_MINUTES_KEYS = ("playtime_minutes", "playtime", "minutes", "playtime_forever")
-_HOURS_KEYS = ("playtime_hours", "hours", "hours_played")
-_SECONDS_KEYS = ("playtime_seconds", "seconds")
-_SOURCE_KEYS = ("source", "sourcename", "source_name", "store", "platform", "launcher")
+_TITLE_KEYS = (
+    "title",
+    "name",
+    "game",
+    "game_name",
+    "product_title",
+    "nombre",
+    "título",
+    "titulo",
+    "juego",
+)
+_MINUTES_KEYS = ("playtime_minutes", "playtime", "minutes", "playtime_forever", "minutos")
+_HOURS_KEYS = ("playtime_hours", "hours", "hours_played", "horas", "horas jugadas")
+# Playnite stores playtime in seconds; its CSV header is "Tiempo Jugado" / "Time Played"
+_SECONDS_KEYS = ("playtime_seconds", "seconds", "segundos", "tiempo jugado", "time played")
+_STATUS_KEYS = (
+    "status",
+    "estado",
+    "completion status",
+    "completionstatus",
+    "estado de finalización",
+    "estado de finalizacion",
+)
+_LAST_PLAYED_KEYS = (
+    "last_played",
+    "last played",
+    "last activity",
+    "lastactivity",
+    "última actividad",
+    "ultima actividad",
+)
+_FAVORITE_KEYS = ("favorite", "favourite", "favorito", "is_favorite")
+_SOURCE_KEYS = (
+    "source",
+    "sourcename",
+    "source_name",
+    "store",
+    "platform",
+    "launcher",
+    "fuente",
+    "origen",
+    "plataforma",
+    "tienda",
+)
 _STEAM_ID_KEYS = ("steamappid", "steam_appid", "steam_app_id", "appid")
 _TRUE = {"true", "1", "yes", "y", "si", "sí", "x"}
 # Store names as written by Playnite, Heroic and the launchers themselves
@@ -40,18 +85,40 @@ _PLATFORM_ALIASES = {
     "prime gaming": Platform.AMAZON,
     "nile": Platform.AMAZON,
 }
+# Includes Playnite's default completion statuses in English and Spanish.
+# "Played" / "On Hold" = started but unfinished, so they stay in the backlog.
 _STATUS_ALIASES = {
     "backlog": GameStatus.BACKLOG,
     "pending": GameStatus.BACKLOG,
+    "pendiente": GameStatus.BACKLOG,
+    "not played": GameStatus.BACKLOG,
+    "sin jugar": GameStatus.BACKLOG,
+    "no jugado": GameStatus.BACKLOG,
+    "plan to play": GameStatus.BACKLOG,
+    "planeado": GameStatus.BACKLOG,
+    "por jugar": GameStatus.BACKLOG,
+    "played": GameStatus.BACKLOG,
+    "jugado": GameStatus.BACKLOG,
+    "on hold": GameStatus.BACKLOG,
+    "en espera": GameStatus.BACKLOG,
+    "en pausa": GameStatus.BACKLOG,
     "playing": GameStatus.PLAYING,
+    "jugando": GameStatus.PLAYING,
     "in progress": GameStatus.PLAYING,
+    "en progreso": GameStatus.PLAYING,
     "completed": GameStatus.COMPLETED,
+    "completado": GameStatus.COMPLETED,
     "finished": GameStatus.COMPLETED,
+    "terminado": GameStatus.COMPLETED,
     "beaten": GameStatus.COMPLETED,
+    "superado": GameStatus.COMPLETED,
     "dropped": GameStatus.DROPPED,
     "abandoned": GameStatus.DROPPED,
+    "abandonado": GameStatus.DROPPED,
     "wishlist": GameStatus.WISHLIST,
+    "deseado": GameStatus.WISHLIST,
     "other": GameStatus.OTHER,
+    "otro": GameStatus.OTHER,
 }
 
 
@@ -126,16 +193,16 @@ def _row_to_game(raw: dict) -> ImportedGame | None:
     if steam_appid is not None and steam_appid <= 0:
         steam_appid = None
 
-    status_raw = row.get("status")
+    status_raw = _first(row, _STATUS_KEYS)
     status = _STATUS_ALIASES.get(str(status_raw).strip().lower()) if status_raw else None
 
     return ImportedGame(
         title=str(title).strip()[:255],
         playtime_minutes=max(playtime, 0),
         status=status,
-        last_played_at=_parse_dt(row.get("last_played")),
+        last_played_at=_parse_dt(_first(row, _LAST_PLAYED_KEYS)),
         platform=platform,
-        is_favorite=str(row.get("favorite", "")).strip().lower() in _TRUE,
+        is_favorite=str(_first(row, _FAVORITE_KEYS) or "").strip().lower() in _TRUE,
         steam_appid=steam_appid if platform in (None, Platform.STEAM) else None,
     )
 

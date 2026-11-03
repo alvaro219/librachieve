@@ -64,7 +64,10 @@ async def upsert_library_entry(
     last_played_at: datetime | None = None,
     status: GameStatus | None = None,
 ) -> tuple[LibraryEntry, bool]:
-    """Insert or refresh an entry. Re-syncs update playtime but keep the user's chosen status.
+    """Insert or refresh an entry.
+
+    Re-syncs update playtime. The status is only changed when the source provides one (an
+    imported file with a status column); Steam syncs carry none, so they never touch it.
 
     Returns (entry, created).
     """
@@ -89,6 +92,10 @@ async def upsert_library_entry(
         return entry, True
 
     entry.playtime_minutes = max(entry.playtime_minutes, playtime_minutes)
+    if status is not None:
+        entry.status = status
+        if status != GameStatus.OTHER:
+            entry.custom_folder = None
     if last_played_at and (entry.last_played_at is None or last_played_at > entry.last_played_at):
         entry.last_played_at = last_played_at
     return entry, False

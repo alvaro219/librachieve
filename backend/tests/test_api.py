@@ -238,3 +238,31 @@ async def test_login_is_rate_limited_per_account(client):
     ok = {"login": username, "password": "supersecret"}
     resp = await client.post("/api/auth/login", json=ok)
     assert resp.status_code == 429 and "Retry-After" in resp.headers
+
+
+async def test_reimport_applies_file_status_but_keeps_it_when_absent(client):
+    headers = await _register(client)
+    headers.pop("username")
+
+    async def upload(content: bytes):
+        resp = await client.post(
+            "/api/sync/import/epic",
+            headers=headers,
+            files={"file": ("lib.csv", content, "text/csv")},
+        )
+        assert resp.status_code == 201, resp.text
+
+    async def status_of(title: str) -> dict:
+        q = "query($s: String) { library(filter:{search:$s}) { items { status playtimeMinutes } } }"
+        body = {"query": q, "variables": {"s": title}}
+        data = (await client.post("/graphql", headers=headers, json=body)).json()
+        return data["data"]["library"]["items"][0]
+
+    await upload("Nombre,Estado de finalización,Tiempo Jugado\nHades,Not Played,0\n".encode())
+    assert (await status_of("hades"))["status"] == "BACKLOG"
+
+    await upload("Nombre,Estado de finalización,Tiempo Jugado\nHades,Beaten,7200\n".encode())
+    assert await status_of("hades") == {"status": "COMPLETED", "playtimeMinutes": 120}
+
+    await upload(b"Nombre\nHades\n")  # no status column: keep what we have
+    assert (await status_of("hades"))["status"] == "COMPLETED"

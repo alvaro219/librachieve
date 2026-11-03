@@ -121,14 +121,17 @@ export default function ImportPage() {
                 (gratis) y conecta tus tiendas: Epic, GOG, Amazon…
               </li>
               <li>
-                En Playnite, añade un complemento exportador de biblioteca (por ejemplo «Library
-                Exporter») y exporta a CSV o JSON.
+                Añade un complemento exportador de biblioteca (por ejemplo «Library Exporter») y,
+                en los campos a exportar, marca <strong>Nombre</strong> y{" "}
+                <strong>Fuente</strong> (para que cada juego vaya a su tienda). Opcionales:{" "}
+                <em>Estado de finalización</em>, <em>Tiempo jugado</em> y <em>Favorito</em>.
               </li>
-              <li>Sube aquí ese fichero: cada juego se coloca solo en su tienda.</li>
+              <li>Exporta a CSV y súbelo aquí. Da igual que Playnite esté en español o en inglés.</li>
             </ol>
             <p className="mt-1 text-xs text-slate-400">
-              Se importan también tus favoritos de Playnite. Para actualizar, vuelve a exportar y
-              subir el fichero: los juegos repetidos no se duplican.
+              Si el fichero no tiene la columna Fuente, todos los juegos se asignan a la tienda que
+              elijas abajo. Para actualizar, vuelve a exportar y subir: no se duplica nada y, si el
+              fichero trae estado, se aplica.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

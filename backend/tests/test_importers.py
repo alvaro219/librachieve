@@ -95,3 +95,35 @@ def test_playnite_style_export_with_per_row_store():
 def test_playtime_in_seconds():
     games = parse_import_file("x.json", b'[{"name": "Celeste", "playtime_seconds": 7260}]')
     assert games[0].playtime_minutes == 121
+
+
+def test_playnite_spanish_headers_seconds_and_statuses():
+    content = (
+        "\ufeffNombre,Estado de finalización,Tiempo Jugado\n"
+        "A Short Hike,Completed,6830\n"
+        "Age of Empires II: Definitive Edition,Played,22980\n"
+        '"Aerial_Knight\'s Never Yield",Abandoned,0\n'
+        '"Aerial_Knight\'s Never Yield",Abandoned,0\n'
+        "Hades,Beaten,3600\n"
+        "Celeste,Playing,60\n"
+        "Tunic,Plan to Play,0\n"
+        "Inscryption,Estado inventado,0\n"
+    ).encode()
+    games = {g.title: g for g in parse_import_file("amazon_games_library.csv", content)}
+    assert len(games) == 7  # duplicate row collapsed
+    assert games["A Short Hike"].playtime_minutes == 113  # seconds, not minutes
+    assert games["A Short Hike"].status == GameStatus.COMPLETED
+    assert games["Age of Empires II: Definitive Edition"].status == GameStatus.BACKLOG
+    assert games["Aerial_Knight's Never Yield"].status == GameStatus.DROPPED
+    assert games["Hades"].status == GameStatus.COMPLETED
+    assert games["Celeste"].status == GameStatus.PLAYING
+    assert games["Tunic"].status == GameStatus.BACKLOG
+    assert games["Inscryption"].status is None  # unknown value: keep the default
+
+
+def test_name_only_file():
+    games = parse_import_file("lista.csv", b"Nombre\nHades\nCeleste\n")
+    assert [(g.title, g.playtime_minutes, g.status) for g in games] == [
+        ("Hades", 0, None),
+        ("Celeste", 0, None),
+    ]
