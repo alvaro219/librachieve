@@ -12,11 +12,7 @@ function LegalPage({ title, children }: { title: string; children: ReactNode }) 
   );
 }
 
-const Contact = () => (
-  <a href={SITE.contactUrl} target="_blank" rel="noreferrer">
-    {SITE.contactLabel}
-  </a>
-);
+const Contact = () => <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>;
 
 export function PrivacyPage() {
   return (
