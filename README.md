@@ -58,7 +58,8 @@ kubectl apply -f infra/k8s/
 
 ## Producción (Oracle Cloud, gratis)
 
-Todo corre en una sola máquina virtual ARM del plan «Always Free» de Oracle Cloud con
+Todo corre en una sola máquina virtual del plan «Always Free» de Oracle Cloud (ARM A1 o, mientras no
+haya hueco, la AMD E2.1.Micro de 1 GB) con
 `infra/docker-compose.prod.yml`:
 
 - **Caddy** sirve la web y redirige `/api` y `/graphql` al backend, con HTTPS automático (Let's Encrypt).
@@ -69,13 +70,15 @@ Puesta en marcha (una vez): `bash infra/server-setup.sh` en el servidor (Docker,
 actualizaciones automáticas), copiar el `.env` de producción y arrancar:
 
 ```bash
-docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --build
+docker compose -f infra/docker-compose.prod.yml --env-file .env pull
+docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --no-build
 ```
 
 Variables del `.env` de producción: `DOMAIN`, `SECRET_KEY`, `POSTGRES_PASSWORD`, `STEAM_API_KEY`,
 `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`.
 
-Después, `.github/workflows/deploy.yml` despliega solo cada push a `main` con el CI en verde
+Las imágenes (amd64 y arm64) las construye GitHub Actions y las publica en GHCR, así el servidor no
+compila nada. `.github/workflows/deploy.yml` despliega solo cada push a `main` con el CI en verde
 (variables `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_DOMAIN` y el secreto `DEPLOY_SSH_KEY`).
 
 Restaurar una copia: `gunzip -c librachieve-FECHA.sql.gz | docker compose -f infra/docker-compose.prod.yml exec -T postgres psql -U librachieve librachieve`.

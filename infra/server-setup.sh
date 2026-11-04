@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup of a fresh Ubuntu 24.04 VM (Oracle Cloud Always Free, ARM64) for Librachieve.
+# One-time setup of a fresh Ubuntu 24.04 VM (Oracle Cloud Always Free, A1 ARM64 or E2.1.Micro) for Librachieve.
 # Run as the default "ubuntu" user:  bash server-setup.sh
 # Idempotent: safe to re-run.
 set -euo pipefail
@@ -25,7 +25,7 @@ fi
 sudo apt-get install -y -qq iptables-persistent >/dev/null 2>&1 || true
 sudo netfilter-persistent save >/dev/null
 
-echo "==> Swap (2 GB) so image builds never run out of memory"
+echo "==> Swap (2 GB): needed on the 1 GB Micro, harmless elsewhere"
 if ! swapon --show | grep -q /swapfile; then
   sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
   sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile

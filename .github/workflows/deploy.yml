@@ -1,9 +1,12 @@
-# Deploys main to the production VM (Oracle Cloud) after CI passes.
+# Builds the production images after CI passes on main, pushes them to GHCR and deploys
+# them to the VM (Oracle Cloud Always Free). Images are built here, for amd64 and arm64,
+# so the server never compiles anything: it works on the 1 GB AMD Micro as well as the A1.
 # Repository settings > Secrets and variables > Actions:
-#   variables: DEPLOY_HOST (server IP or hostname), DEPLOY_USER (e.g. ubuntu)
+#   variables: DEPLOY_HOST (server IP or hostname), DEPLOY_USER (e.g. ubuntu),
+#              DEPLOY_DOMAIN (public domain, e.g. librachieve.duckdns.org)
 #   secrets:   DEPLOY_SSH_KEY (private key whose public half is in the server's authorized_keys)
-# The server holds the repo at ~/librachieve with its production .env (see infra/README.md).
-# Skipped entirely while DEPLOY_HOST is not set.
+# The server holds the repo at ~/librachieve with its production .env (see infra/server-setup.sh).
+# The deploy job is skipped while DEPLOY_HOST is not set.
 name: Deploy
 
 on:
@@ -18,18 +21,71 @@ permissions:
 
 concurrency: deploy-production
 
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
 jobs:
+  images:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/librachieve-backend:${{ env.SHA }}
+            ${{ env.REGISTRY }}/librachieve-backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Web image (Caddy + frontend build)
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          target: web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VITE_SITE_URL=https://${{ vars.DEPLOY_DOMAIN || 'librachieve.duckdns.org' }}
+          tags: |
+            ${{ env.REGISTRY }}/librachieve-web:${{ env.SHA }}
+            ${{ env.REGISTRY }}/librachieve-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
   deploy:
-    if: ${{ vars.DEPLOY_HOST != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
+    needs: images
+    if: ${{ vars.DEPLOY_HOST != '' }}
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Deploy over SSH
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           HOST: ${{ vars.DEPLOY_HOST }}
           USER: ${{ vars.DEPLOY_USER }}
-          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Short-lived token (this job only) so the server can pull the images
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
         run: |
           install -m 600 /dev/null key && printf '%s\n' "$SSH_KEY" > key
           ssh -i key -o StrictHostKeyChecking=accept-new "$USER@$HOST" bash -s <<EOF
@@ -37,7 +93,11 @@ jobs:
           cd ~/librachieve
           git fetch --depth 1 origin "$SHA"
           git checkout --force FETCH_HEAD
-          docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --build --remove-orphans
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          export IMAGE_TAG="$SHA" REGISTRY="$REGISTRY"
+          docker compose -f infra/docker-compose.prod.yml --env-file .env pull --quiet
+          docker logout ghcr.io
+          docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --no-build --remove-orphans
           docker image prune -f
           EOF
           rm -f key

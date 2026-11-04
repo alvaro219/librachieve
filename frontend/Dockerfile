@@ -1,4 +1,5 @@
-FROM node:22-alpine AS deps
+# Node stages run natively on the build machine: the output is static files, valid for any arch.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci

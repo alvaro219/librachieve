@@ -1,11 +1,14 @@
-# Production stack on a single VM (Oracle Cloud Always Free, ARM64).
+# Production stack on a single VM (Oracle Cloud Always Free: A1 ARM64 or E2.1.Micro AMD64).
+# Images are built by GitHub Actions (.github/workflows/deploy.yml) and pulled from GHCR.
 # From the repo root on the server:
-#   docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --build
+#   IMAGE_TAG=<commit sha> docker compose -f infra/docker-compose.prod.yml --env-file .env up -d --no-build
+# With enough memory they can also be built in place: "up -d --build".
 # Required in .env: DOMAIN, SECRET_KEY, POSTGRES_PASSWORD, STEAM_API_KEY, IGDB_CLIENT_ID,
-# IGDB_CLIENT_SECRET (see infra/README.md).
+# IGDB_CLIENT_SECRET.
 name: librachieve-prod
 
 x-backend: &backend
+  image: ${REGISTRY:-ghcr.io/alvaro219}/librachieve-backend:${IMAGE_TAG:-latest}
   build:
     context: ..
     dockerfile: backend/Dockerfile
@@ -27,6 +30,8 @@ x-backend: &backend
 services:
   postgres:
     image: postgres:16-alpine
+    # Sized for a 1 GB VM; plenty for this workload
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=40"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-librachieve}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
@@ -58,6 +63,7 @@ services:
     command: ["arq", "app.worker.WorkerSettings"]
 
   web:
+    image: ${REGISTRY:-ghcr.io/alvaro219}/librachieve-web:${IMAGE_TAG:-latest}
     build:
       context: ../frontend
       target: web
