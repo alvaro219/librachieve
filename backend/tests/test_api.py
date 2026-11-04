@@ -4,15 +4,18 @@ Skipped automatically when the database is unreachable.
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import select, text, update
 
+from app.core.security import create_access_token
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
 from app.main import app
+from app.models import SyncJob, User, UserRole
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -424,3 +427,164 @@ async def test_filter_by_scores_and_genre(client):
         "Platform",
         "Shooter",
     }
+
+
+async def _user_without_password() -> tuple[User, dict]:
+    """A Steam-only account (no email, no password), signed in."""
+    async with SessionLocal() as db:
+        user = User(username=f"s{uuid.uuid4().hex[:10]}", steam_id=uuid.uuid4().hex[:17])
+        db.add(user)
+        await db.commit()
+    return user, {"Authorization": f"Bearer {create_access_token(user.id, 'user')}"}
+
+
+async def test_change_password(client):
+    headers = await _register(client)
+    username = headers.pop("username")
+    url = "/api/users/me/password"
+
+    wrong = {"current_password": "nope", "new_password": "newsecret1"}
+    assert (await client.put(url, headers=headers, json=wrong)).status_code == 400
+    missing = {"new_password": "newsecret1"}
+    assert (await client.put(url, headers=headers, json=missing)).status_code == 400
+    ok = {"current_password": "supersecret", "new_password": "newsecret1"}
+    assert (await client.put(url, headers=headers, json=ok)).status_code == 204
+
+    old = {"login": username, "password": "supersecret"}
+    assert (await client.post("/api/auth/login", json=old)).status_code == 401
+    new = {"login": username, "password": "newsecret1"}
+    assert (await client.post("/api/auth/login", json=new)).status_code == 200
+
+
+async def test_steam_only_account_can_set_a_first_password(client):
+    user, headers = await _user_without_password()
+    assert (await client.get("/api/users/me", headers=headers)).json()["has_password"] is False
+    first = {"new_password": "firstpass1"}
+    assert (
+        await client.put("/api/users/me/password", headers=headers, json=first)
+    ).status_code == 204
+    assert (await client.get("/api/users/me", headers=headers)).json()["has_password"] is True
+    login = {"login": user.username, "password": "firstpass1"}
+    assert (await client.post("/api/auth/login", json=login)).status_code == 200
+
+
+def _names(items: list[dict]) -> list[str]:
+    return [i["user"]["username"] if "user" in i else i["username"] for i in items]
+
+
+async def test_friends_flow(client):
+    a = await _register(client)
+    b = await _register(client)
+    a_name, b_name = a.pop("username"), b.pop("username")
+
+    # b is private: a partial search doesn't find it, the exact name does
+    partial = await client.get("/api/users/search", params={"q": b_name[:6]}, headers=a)
+    assert b_name not in _names(partial.json())
+    exact = (await client.get("/api/users/search", params={"q": b_name}, headers=a)).json()
+    assert _names(exact) == [b_name] and exact[0]["friendship"] == "none"
+
+    sent = await client.post("/api/friends/requests", headers=a, json={"username": b_name})
+    assert sent.status_code == 201
+    fid = sent.json()["id"]
+    again = await client.post("/api/friends/requests", headers=a, json={"username": b_name})
+    assert again.status_code == 409
+    to_self = await client.post("/api/friends/requests", headers=a, json={"username": a_name})
+    assert to_self.status_code == 400
+
+    assert _names((await client.get("/api/friends", headers=a)).json()["outgoing"]) == [b_name]
+    assert _names((await client.get("/api/friends", headers=b)).json()["incoming"]) == [a_name]
+
+    # Only the addressee can accept
+    assert (await client.post(f"/api/friends/{fid}/accept", headers=a)).status_code == 409
+    assert (await client.post(f"/api/friends/{fid}/accept", headers=b)).status_code == 200
+    overview = (await client.get("/api/friends", headers=a)).json()
+    assert _names(overview["friends"]) == [b_name] and overview["outgoing"] == []
+
+    # Friends show up in a partial search too, marked as such
+    found = (await client.get("/api/users/search", params={"q": b_name[:6]}, headers=a)).json()
+    assert [(u["username"], u["friendship"]) for u in found] == [(b_name, "friends")]
+
+    # Someone else can't touch it; either friend can remove it
+    c = await _register(client)
+    c.pop("username")
+    assert (await client.delete(f"/api/friends/{fid}", headers=c)).status_code == 404
+    assert (await client.delete(f"/api/friends/{fid}", headers=b)).status_code == 204
+    assert (await client.get("/api/friends", headers=a)).json()["friends"] == []
+
+
+async def test_crossed_requests_become_a_friendship(client):
+    a = await _register(client)
+    b = await _register(client)
+    a_name, b_name = a.pop("username"), b.pop("username")
+    await client.post("/api/friends/requests", headers=a, json={"username": b_name})
+    back = await client.post("/api/friends/requests", headers=b, json={"username": a_name})
+    assert back.status_code == 201 and back.json()["accepted_at"] is not None
+    assert len((await client.get("/api/friends", headers=a)).json()["friends"]) == 1
+
+
+async def test_admin_panel(client):
+    admin = await _register(client)
+    user = await _register(client)
+    admin_name, user_name = admin.pop("username"), user.pop("username")
+
+    assert (await client.get("/api/admin/overview", headers=user)).status_code == 403
+    async with SessionLocal() as db:
+        await db.execute(
+            update(User).where(User.username == admin_name).values(role=UserRole.ADMIN)
+        )
+        await db.commit()
+
+    overview = (await client.get("/api/admin/overview", headers=admin)).json()
+    assert overview["users"] >= 2 and overview["active_users_30d"] >= 2
+
+    page = (await client.get("/api/admin/users", params={"q": user_name}, headers=admin)).json()
+    assert page["total"] == 1 and page["items"][0]["games"] == 0
+    target = page["items"][0]["id"]
+    mine = (await client.get("/api/admin/users", params={"q": admin_name}, headers=admin)).json()
+    own = mine["items"][0]["id"]
+
+    # Your own account can't be demoted or deleted from the panel
+    demote = await client.patch(f"/api/admin/users/{own}", headers=admin, json={"role": "user"})
+    assert demote.status_code == 400
+    assert (await client.delete(f"/api/admin/users/{own}", headers=admin)).status_code == 400
+
+    promote = {"role": "admin"}
+    resp = await client.patch(f"/api/admin/users/{target}", headers=admin, json=promote)
+    assert resp.json()["role"] == "admin"
+    assert (await client.delete(f"/api/admin/users/{target}", headers=admin)).status_code == 204
+    assert (await client.get("/api/users/me", headers=user)).status_code == 401
+
+
+async def test_daily_steam_sync_only_for_active_users(client, monkeypatch):
+    from app.core.config import settings
+    from app.worker import schedule_steam_syncs
+
+    class FakeQueue:
+        def __init__(self):
+            self.calls = []
+
+        async def enqueue_job(self, name, *args, **kwargs):
+            self.calls.append((name, args))
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    active = User(
+        username=f"a{uuid.uuid4().hex[:10]}", steam_id=uuid.uuid4().hex[:17], last_seen_at=now
+    )
+    idle = User(
+        username=f"i{uuid.uuid4().hex[:10]}",
+        steam_id=uuid.uuid4().hex[:17],
+        last_seen_at=now - timedelta(days=90),
+    )
+    async with SessionLocal() as db:
+        db.add_all([active, idle])
+        await db.commit()
+
+    monkeypatch.setattr(settings, "steam_api_key", "test")
+    queue = FakeQueue()
+    await schedule_steam_syncs({"redis": queue})
+
+    scheduled = [args[1] for name, args in queue.calls if name == "sync_steam"]
+    assert active.steam_id in scheduled and idle.steam_id not in scheduled
+    async with SessionLocal() as db:
+        job = await db.scalar(select(SyncJob).where(SyncJob.user_id == active.id))
+        assert job.automatic is True

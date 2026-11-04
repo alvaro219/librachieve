@@ -19,12 +19,15 @@ Librachieve is a full-stack web application for personal video game library mana
 4. **User stats:** playtime tracking, completion ratio, most played genres, games per platform, achievements (unlocked/total, 100% games).
 6. **Achievements:** Steam achievements via the official Web API (`app/services/achievements.py`): schema in Spanish (`l=spanish`) + global % refreshed weekly per game, player unlocks on every Steam sync (played games only). Counters are denormalised on `library_entries`.
 7. **Ratings (like Playnite):** your 0-100 score per game (`game_ratings`, one per game across stores), Librachieve users average (`games.community_rating`, recomputed on every vote), IGDB community (`igdb_rating`) and critics (`critic_rating`, IGDB aggregated). Filter/sort by any of them; filter by genre.
-5. **User profiles:** public/private toggle. JWT-based auth with role support (user / admin).
+5. **User profiles:** public/private toggle. JWT-based auth with role support (user / admin); password change in Settings (Steam-only accounts can set a first one). No password reset yet (needs outgoing email).
+8. **Friends:** `friendships` table, one row per pair (pending → accepted; crossed requests auto-accept). User search shows public profiles by partial name and private ones only by exact name. Friends do NOT see private profiles (yet); the list is the base for future social features.
+9. **Admin panel** (`/admin`, `app/routers/admin.py`): overview counters, user list (search, promote/demote, delete; never your own account) and re-run IGDB matching for games without metadata.
+10. **Daily Steam sync:** ARQ cron `schedule_steam_syncs` at 04:00 UTC for users with Steam linked and `last_seen_at` in the last 30 days (set on login/refresh); jobs flagged `automatic`, only the newest is listed and older than 7 days are pruned.
 
 ## Project Structure
 - `frontend/` — React app (`src/api` typed client, `src/pages`, `src/components`, UI strings in Spanish, enum labels in `src/lib/labels.ts`)
-- `backend/` — FastAPI app with routers: auth, games, library, users, sync
-  - `app/models` SQLAlchemy models · `app/schemas` Pydantic · `app/services` (steam, igdb, importers, catalog, stats, queue) · `app/graphql` Strawberry schema · `app/worker.py` ARQ worker · `app/cli.py` management commands
+- `backend/` — FastAPI app with routers: auth, games, library, users, friends, sync, admin
+  - `app/models` SQLAlchemy models · `app/schemas` Pydantic · `app/services` (steam, igdb, importers, catalog, stats, queue, friends) · `app/graphql` Strawberry schema · `app/worker.py` ARQ worker · `app/cli.py` management commands
 - `infra/` — Docker Compose (dev + prod), `Caddyfile` (prod HTTPS entry point), `server-setup.sh` (VM bootstrap), Kubernetes manifests (`infra/k8s`, Minikube staging)
 - `.github/workflows/` — CI and deploy workflows (GitHub only reads them from here, not from `infra/`)
 - `migrations/` + root `alembic.ini` — Alembic migration files
@@ -38,7 +41,8 @@ Librachieve is a full-stack web application for personal video game library mana
 - PostgreSQL is the single source of truth. Redis is cache only, never primary storage.
 - Epic/GOG/Amazon: file import only (JSON/CSV). Playnite exports use UI-language headers (e.g. `Nombre,Estado de finalización,Tiempo Jugado` — playtime in **seconds**) and English status values; only the title is required. A status in the file is applied on re-import; Steam syncs never change statuses.
 - File imports can be undone (newest first, like a stack): `sync_job_changes` logs created entries and previous values; imports from before the log existed fall back to deleting that platform's entries added during the import window. Logging into them via unofficial launcher APIs was rejected (ToS + storing third-party tokens server-side). A local desktop companion is a possible future idea.
-- Auth endpoints are rate limited in Redis (`app/core/ratelimit.py`); tests reset `ratelimit:*` keys.
+- Auth endpoints (plus password change and friend requests) are rate limited in Redis (`app/core/ratelimit.py`); tests reset `ratelimit:*` keys.
+- Never log or store raw httpx errors: Steam Web API URLs carry our API key in the query string. Use `app.core.http.describe_error`. Secrets go in headers or request bodies, never in URLs we control.
 - Legal pages (`/privacidad`, `/aviso-legal`) are required (Spain/GDPR); owner data lives in `frontend/src/lib/site.ts`.
 - Postgres enum types are created/dropped explicitly in migrations (autogenerate doesn't handle shared enums or drop them on downgrade).
 

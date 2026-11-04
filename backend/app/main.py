@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.redis import redis_client
 from app.db.session import SessionLocal, engine
 from app.graphql.schema import graphql_router
-from app.routers import auth, games, library, sync, users
+from app.routers import admin, auth, friends, games, library, sync, users
 from app.services.queue import close_queue
 
 
@@ -36,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth, games, library, users, sync):
+for r in (auth, games, library, users, friends, sync, admin):
     app.include_router(r.router, prefix="/api")
 app.include_router(graphql_router, prefix="/graphql")
 

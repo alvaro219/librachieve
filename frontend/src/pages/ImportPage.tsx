@@ -65,8 +65,12 @@ export default function ImportPage() {
             <>
               <p className="text-sm text-slate-400">
                 Cuenta vinculada (SteamID {user.steam_id}). La sincronización importa todos tus
-                juegos y su tiempo de juego. Necesitas tener los «Detalles de juegos» como
-                públicos en la privacidad de Steam.
+                juegos y su tiempo de juego. Necesitas tener los «Detalles de juegos» como públicos
+                en la privacidad de Steam.
+              </p>
+              <p className="text-sm text-slate-400">
+                Además se sincroniza sola cada noche si has entrado en Librachieve en los últimos 30
+                días.
               </p>
               <button
                 className="btn-primary"
@@ -122,12 +126,14 @@ export default function ImportPage() {
                 (gratis) y conecta tus tiendas: Epic, GOG, Amazon…
               </li>
               <li>
-                Añade un complemento exportador de biblioteca (por ejemplo «Library Exporter») y,
-                en los campos a exportar, marca <strong>Nombre</strong> y{" "}
-                <strong>Fuente</strong> (para que cada juego vaya a su tienda). Opcionales:{" "}
-                <em>Estado de finalización</em>, <em>Tiempo jugado</em> y <em>Favorito</em>.
+                Añade un complemento exportador de biblioteca (por ejemplo «Library Exporter») y, en
+                los campos a exportar, marca <strong>Nombre</strong> y <strong>Fuente</strong> (para
+                que cada juego vaya a su tienda). Opcionales: <em>Estado de finalización</em>,{" "}
+                <em>Tiempo jugado</em> y <em>Favorito</em>.
               </li>
-              <li>Exporta a CSV y súbelo aquí. Da igual que Playnite esté en español o en inglés.</li>
+              <li>
+                Exporta a CSV y súbelo aquí. Da igual que Playnite esté en español o en inglés.
+              </li>
             </ol>
             <p className="mt-1 text-xs text-slate-400">
               Si el fichero no tiene la columna Fuente, todos los juegos se asignan a la tienda que
@@ -162,8 +168,8 @@ export default function ImportPage() {
           {fileImport.error && <p className="text-sm text-red-400">{fileImport.error.message}</p>}
           {fileImport.data && (
             <p className="text-sm text-emerald-400">
-              {fileImport.data.imported_count} juegos importados. Las portadas y géneros se
-              añadirán en segundo plano.
+              {fileImport.data.imported_count} juegos importados. Las portadas y géneros se añadirán
+              en segundo plano.
             </p>
           )}
           <details className="text-sm text-slate-400">
@@ -173,8 +179,8 @@ export default function ImportPage() {
               <code>playtime_minutes</code> o <code>playtime_hours</code>/<code>hours</code>,{" "}
               <code>status</code> (backlog, playing, completed, dropped, wishlist, other),{" "}
               <code>last_played</code>, <code>favorite</code> y <code>source</code> /{" "}
-              <code>sourceName</code> (la tienda de cada juego; si existe, manda sobre la
-              plataforma elegida arriba).
+              <code>sourceName</code> (la tienda de cada juego; si existe, manda sobre la plataforma
+              elegida arriba).
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs">
@@ -209,6 +215,7 @@ export default function ImportPage() {
                     <span className="flex items-center gap-1.5">
                       <PlatformIcon platform={j.platform} title="" className="h-4 w-4" />
                       {PLATFORM_LABELS[j.platform]}
+                      {j.automatic && <span className="text-xs text-slate-500">· automática</span>}
                     </span>
                   </td>
                   <td>
@@ -224,9 +231,13 @@ export default function ImportPage() {
                       }
                     >
                       {
-                        { failed: "✕ ", success: "✓ ", reverted: "↶ ", pending: "⟳ ", running: "⟳ " }[
-                          j.status
-                        ]
+                        {
+                          failed: "✕ ",
+                          success: "✓ ",
+                          reverted: "↶ ",
+                          pending: "⟳ ",
+                          running: "⟳ ",
+                        }[j.status]
                       }
                       {SYNC_STATUS_LABELS[j.status]}
                     </span>

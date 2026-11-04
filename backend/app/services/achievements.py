@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.http import describe_error
 from app.models import Achievement, Game, LibraryEntry, Platform, UserAchievement
 
 logger = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ async def sync_steam_achievements(
     with_achievements = 0
     for (entry, appid, _, _), data in zip(plans, results, strict=True):
         if isinstance(data, BaseException):
-            logger.warning("Steam achievements failed for app %s: %s", appid, data)
+            logger.warning("Steam achievements failed for app %s: %s", appid, describe_error(data))
             continue
         if data.schema is not None:
             await _store_schema(db, entry.game_id, data)

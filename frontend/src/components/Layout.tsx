@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import Footer from "./Footer";
+import { useFriends } from "./FriendButton";
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-3 py-2 text-sm font-medium transition ${
@@ -10,6 +11,8 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const friends = useFriends(!!user);
+  const pending = user ? (friends.data?.incoming.length ?? 0) : 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -35,6 +38,24 @@ export default function Layout() {
               <NavLink to="/import" className={navClass}>
                 Importar
               </NavLink>
+              <NavLink to="/amigos" className={navClass}>
+                <span className="flex items-center gap-1.5">
+                  Amigos
+                  {pending > 0 && (
+                    <span
+                      className="rounded-full bg-indigo-500 px-1.5 text-xs font-semibold text-white"
+                      title={`${pending} solicitudes de amistad`}
+                    >
+                      {pending}
+                    </span>
+                  )}
+                </span>
+              </NavLink>
+              {user.role === "admin" && (
+                <NavLink to="/admin" className={navClass}>
+                  Admin
+                </NavLink>
+              )}
             </nav>
           )}
           <div className="ml-auto flex items-center gap-3">

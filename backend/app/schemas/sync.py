@@ -15,5 +15,6 @@ class SyncJobOut(BaseModel):
     error: str | None
     created_at: datetime
     finished_at: datetime | None
+    automatic: bool = False
     # True only for the most recent completed file import (undo works like a stack)
     undoable: bool = False

@@ -11,6 +11,90 @@ const STEAM_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   expired: { text: "El enlace de vinculación caducó. Inténtalo de nuevo.", ok: false },
 };
 
+function PasswordSection({
+  hasPassword,
+  onChanged,
+}: {
+  hasPassword: boolean;
+  onChanged: () => void;
+}) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [repeat, setRepeat] = useState("");
+  const change = useMutation({
+    mutationFn: usersApi.changePassword,
+    onSuccess: () => {
+      setCurrent("");
+      setNext("");
+      setRepeat("");
+      onChanged();
+    },
+  });
+  const mismatch = repeat !== "" && next !== repeat;
+
+  return (
+    <section className="card space-y-3">
+      <h2 className="font-semibold">Contraseña</h2>
+      {!hasPassword && (
+        <p className="text-sm text-slate-400">
+          Entras con Steam. Si creas una contraseña, también podrás entrar con tu nombre de usuario.
+        </p>
+      )}
+      <form
+        className="grid gap-3 sm:max-w-sm"
+        onSubmit={(e) => {
+          e.preventDefault();
+          change.mutate({
+            current_password: hasPassword ? current : undefined,
+            new_password: next,
+          });
+        }}
+      >
+        {hasPassword && (
+          <input
+            className="input"
+            type="password"
+            autoComplete="current-password"
+            placeholder="Contraseña actual"
+            value={current}
+            required
+            onChange={(e) => setCurrent(e.target.value)}
+          />
+        )}
+        <input
+          className="input"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Nueva contraseña (mínimo 8 caracteres)"
+          minLength={8}
+          maxLength={128}
+          value={next}
+          required
+          onChange={(e) => setNext(e.target.value)}
+        />
+        <input
+          className="input"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Repite la nueva contraseña"
+          value={repeat}
+          required
+          onChange={(e) => setRepeat(e.target.value)}
+        />
+        {mismatch && <p className="text-sm text-amber-300">Las contraseñas no coinciden.</p>}
+        {change.error && <p className="text-sm text-red-400">{change.error.message}</p>}
+        {change.isSuccess && <p className="text-sm text-emerald-400">✓ Contraseña guardada.</p>}
+        <button
+          className="btn-primary justify-self-start"
+          disabled={change.isPending || mismatch || next.length < 8}
+        >
+          {hasPassword ? "Cambiar contraseña" : "Crear contraseña"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export default function SettingsPage() {
   const { user, setUser, logout } = useAuth();
   const [params] = useSearchParams();
@@ -64,10 +148,7 @@ export default function SettingsPage() {
             pattern="[A-Za-z0-9_\-]{3,32}"
             onChange={(e) => setUsername(e.target.value)}
           />
-          <button
-            className="btn-primary"
-            disabled={update.isPending || username === user.username}
-          >
+          <button className="btn-primary" disabled={update.isPending || username === user.username}>
             Guardar
           </button>
         </form>
@@ -92,6 +173,11 @@ export default function SettingsPage() {
         </label>
         {update.error && <p className="text-sm text-red-400">{update.error.message}</p>}
       </section>
+
+      <PasswordSection
+        hasPassword={user.has_password}
+        onChanged={() => setUser({ ...user, has_password: true })}
+      />
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Steam</h2>

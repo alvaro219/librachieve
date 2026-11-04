@@ -1,16 +1,24 @@
 import { api } from "./client";
 import type {
   Achievement,
+  AdminOverview,
+  AdminUser,
+  AdminUserPage,
+  Friend,
+  FriendsOverview,
   IgdbSearchResult,
   LibraryEntry,
   LibraryEntryCreate,
   LibraryEntryUpdate,
+  PasswordChange,
   Platform,
   RatingResult,
   SyncJob,
   TokenResponse,
   UserMe,
   UserPublic,
+  UserRole,
+  UserSearchResult,
   UserStats,
   UserUpdate,
 } from "./types";
@@ -28,10 +36,33 @@ export const usersApi = {
   me: () => api<UserMe>("/api/users/me"),
   updateMe: (body: UserUpdate) => api<UserMe>("/api/users/me", { method: "PATCH", json: body }),
   deleteMe: () => api<void>("/api/users/me", { method: "DELETE" }),
+  changePassword: (body: PasswordChange) =>
+    api<void>("/api/users/me/password", { method: "PUT", json: body }),
+  search: (q: string) => api<UserSearchResult[]>(`/api/users/search?${new URLSearchParams({ q })}`),
   myStats: () => api<UserStats>("/api/users/me/stats"),
   profile: (username: string) => api<UserPublic>(`/api/users/${encodeURIComponent(username)}`),
   profileStats: (username: string) =>
     api<UserStats>(`/api/users/${encodeURIComponent(username)}/stats`),
+};
+
+export const friendsApi = {
+  list: () => api<FriendsOverview>("/api/friends"),
+  request: (username: string) => api<Friend>("/api/friends/requests", { json: { username } }),
+  accept: (id: number) => api<Friend>(`/api/friends/${id}/accept`, { method: "POST" }),
+  /** Reject or cancel a request, or remove a friend */
+  remove: (id: number) => api<void>(`/api/friends/${id}`, { method: "DELETE" }),
+};
+
+export const adminApi = {
+  overview: () => api<AdminOverview>("/api/admin/overview"),
+  users: (q: string, offset: number) =>
+    api<AdminUserPage>(
+      `/api/admin/users?${new URLSearchParams({ q, offset: String(offset), limit: "50" })}`,
+    ),
+  setRole: (id: number, role: UserRole) =>
+    api<AdminUser>(`/api/admin/users/${id}`, { method: "PATCH", json: { role } }),
+  deleteUser: (id: number) => api<void>(`/api/admin/users/${id}`, { method: "DELETE" }),
+  reenrich: () => api<{ enqueued: number }>("/api/admin/reenrich", { method: "POST" }),
 };
 
 export const libraryApi = {

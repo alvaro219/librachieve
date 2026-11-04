@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -125,8 +125,17 @@ def _out(job: SyncJob, undoable_id: int | None) -> SyncJobOut:
 
 @router.get("/jobs", response_model=list[SyncJobOut])
 async def list_jobs(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    # Daily automatic syncs would push everything else out: only the newest one is listed
+    latest_auto = (
+        select(func.max(SyncJob.id))
+        .where(SyncJob.user_id == user.id, SyncJob.automatic)
+        .scalar_subquery()
+    )
     rows = await db.scalars(
-        select(SyncJob).where(SyncJob.user_id == user.id).order_by(SyncJob.id.desc()).limit(20)
+        select(SyncJob)
+        .where(SyncJob.user_id == user.id, or_(~SyncJob.automatic, SyncJob.id == latest_auto))
+        .order_by(SyncJob.id.desc())
+        .limit(20)
     )
     undoable_id = await _latest_undoable_id(db, user.id)
     return [_out(job, undoable_id) for job in rows.all()]

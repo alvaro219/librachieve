@@ -3,7 +3,9 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import Layout from "./components/Layout";
+import AdminPage from "./pages/AdminPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
+import FriendsPage from "./pages/FriendsPage";
 import ImportPage from "./pages/ImportPage";
 import { LegalNoticePage, PrivacyPage } from "./pages/LegalPages";
 import LibraryPage from "./pages/LibraryPage";
@@ -53,6 +55,22 @@ export default function App() {
           element={
             <RequireAuth>
               <ImportPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/amigos"
+          element={
+            <RequireAuth>
+              <FriendsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <AdminPage />
             </RequireAuth>
           }
         />

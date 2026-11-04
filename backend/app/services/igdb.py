@@ -53,7 +53,7 @@ async def _get_token(redis: Redis, client: httpx.AsyncClient) -> str:
         return token
     resp = await client.post(
         TOKEN_URL,
-        params={
+        data={  # form body, not the URL: query strings end up in logs
             "client_id": settings.igdb_client_id,
             "client_secret": settings.igdb_client_secret,
             "grant_type": "client_credentials",

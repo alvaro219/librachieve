@@ -23,11 +23,74 @@ export interface UserMe extends UserPublic {
   email: string | null;
   role: UserRole;
   steam_id: string | null;
+  /** Steam-only accounts have none until they set one */
+  has_password: boolean;
 }
 
 export interface UserUpdate {
   username?: string;
   is_public?: boolean;
+}
+
+export interface PasswordChange {
+  current_password?: string;
+  new_password: string;
+}
+
+export type FriendState = "none" | "friends" | "outgoing" | "incoming";
+
+export interface UserSummary {
+  id: number;
+  username: string;
+  avatar_url: string | null;
+  is_public: boolean;
+}
+
+export interface UserSearchResult extends UserSummary {
+  friendship: FriendState;
+  friendship_id: number | null;
+}
+
+export interface Friend {
+  /** Friendship (or request) id */
+  id: number;
+  user: UserSummary;
+  created_at: string;
+  accepted_at: string | null;
+}
+
+export interface FriendsOverview {
+  friends: Friend[];
+  incoming: Friend[];
+  outgoing: Friend[];
+}
+
+export interface AdminOverview {
+  users: number;
+  active_users_30d: number;
+  steam_users: number;
+  games: number;
+  games_without_metadata: number;
+  library_entries: number;
+  failed_jobs_24h: number;
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  email: string | null;
+  avatar_url: string | null;
+  role: UserRole;
+  is_public: boolean;
+  steam_id: string | null;
+  created_at: string;
+  last_seen_at: string | null;
+  games: number;
+}
+
+export interface AdminUserPage {
+  items: AdminUser[];
+  total: number;
 }
 
 export interface GenreStat {
@@ -143,6 +206,8 @@ export interface SyncJob {
   error: string | null;
   created_at: string;
   finished_at: string | null;
+  /** Started by the daily Steam sync, not by the user */
+  automatic: boolean;
   /** Only the newest completed file import can be undone */
   undoable: boolean;
 }

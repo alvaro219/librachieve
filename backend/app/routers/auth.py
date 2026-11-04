@@ -1,5 +1,6 @@
 import re
 import secrets
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -31,7 +32,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _STEAM_STATE_PREFIX = "steam-link:"
 
 
-async def _issue_tokens(response: Response, redis: Redis, user: User) -> TokenResponse:
+async def _issue_tokens(
+    response: Response, redis: Redis, db: AsyncSession, user: User
+) -> TokenResponse:
+    user.last_seen_at = datetime.now(UTC).replace(tzinfo=None)
+    await db.commit()
     refresh = await create_refresh_token(redis, user.id)
     response.set_cookie(
         REFRESH_COOKIE_NAME,
@@ -78,7 +83,7 @@ async def register(
     )
     db.add(user)
     await db.commit()
-    return await _issue_tokens(response, redis, user)
+    return await _issue_tokens(response, redis, db, user)
 
 
 @router.post(
@@ -100,7 +105,7 @@ async def login(
     )
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
-    return await _issue_tokens(response, redis, user)
+    return await _issue_tokens(response, redis, db, user)
 
 
 @router.post(
@@ -120,7 +125,7 @@ async def refresh(
     if user is None:
         response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/auth")
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
-    return await _issue_tokens(response, redis, user)
+    return await _issue_tokens(response, redis, db, user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -207,5 +212,5 @@ async def steam_callback(
     await db.commit()
 
     redirect = RedirectResponse(f"{settings.frontend_url}/auth/callback")
-    await _issue_tokens(redirect, redis, user)
+    await _issue_tokens(redirect, redis, db, user)
     return redirect
