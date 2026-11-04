@@ -1,20 +1,29 @@
+import logging
 from datetime import UTC, datetime
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.http import describe_error
 from app.core.ratelimit import hit
 from app.core.redis import get_redis
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.models import Friendship, FriendshipStatus, User
-from app.schemas.friends import FriendOut, FriendRequestCreate, FriendsOverview
-from app.schemas.user import UserSummary
-from app.services import friends
+from app.schemas.friends import (
+    FriendOut,
+    FriendRequestCreate,
+    FriendsOverview,
+    SteamFriendsAdded,
+)
+from app.schemas.user import UserSearchResult, UserSummary
+from app.services import friends, steam
 
 router = APIRouter(prefix="/friends", tags=["friends"])
+logger = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -82,6 +91,74 @@ async def send_request(
     await db.commit()
     await db.refresh(f)
     return _out(f, other)
+
+
+async def _steam_friends_here(db: AsyncSession, redis: Redis, user: User) -> list[User]:
+    """Librachieve users who are the current user's friends on Steam."""
+    if not user.steam_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Vincula tu cuenta de Steam primero.")
+    await hit(redis, f"steam-friends:user:{user.id}", limit=30, window_seconds=3600)
+    try:
+        ids = await steam.get_friend_ids(user.steam_id)
+    except steam.SteamProfilePrivate as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+    except (steam.SteamError, httpx.HTTPError) as e:
+        logger.warning("Steam friend list failed for user %s: %s", user.id, describe_error(e))
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, "Steam no responde. Prueba otra vez en un rato."
+        ) from e
+    if not ids:
+        return []
+    rows = await db.scalars(
+        select(User).where(User.steam_id.in_(ids), User.id != user.id).order_by(User.username)
+    )
+    return list(rows)
+
+
+@router.get("/steam", response_model=list[UserSearchResult])
+async def steam_friends(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    """Your Steam friends who use Librachieve, with how you relate to each here."""
+    found = await _steam_friends_here(db, redis, user)
+    links = {
+        friends.other_id(f, user.id): f
+        for f in await db.scalars(select(Friendship).where(friends.involving(user.id)))
+    }
+    return [
+        UserSearchResult.model_validate(u).model_copy(
+            update={
+                "friendship": friends.state_for(links.get(u.id), user.id),
+                "friendship_id": links[u.id].id if u.id in links else None,
+            }
+        )
+        for u in found
+    ]
+
+
+@router.post("/steam", response_model=SteamFriendsAdded)
+async def add_steam_friends(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    """Befriend every Steam friend who uses Librachieve, without a request: the friendship
+    is already mutual on Steam (checked with Steam's API, not taken from the client)."""
+    added = 0
+    for other in await _steam_friends_here(db, redis, user):
+        f = await friends.get_between(db, user.id, other.id)
+        if f is None:
+            f = Friendship(requester_id=user.id, addressee_id=other.id)
+            db.add(f)
+        elif f.status == FriendshipStatus.ACCEPTED:
+            continue
+        f.status = FriendshipStatus.ACCEPTED
+        f.accepted_at = _now()
+        added += 1
+    await db.commit()
+    return SteamFriendsAdded(added=added)
 
 
 @router.post("/{friendship_id}/accept", response_model=FriendOut)

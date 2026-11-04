@@ -49,6 +49,10 @@ export const friendsApi = {
   list: () => api<FriendsOverview>("/api/friends"),
   request: (username: string) => api<Friend>("/api/friends/requests", { json: { username } }),
   accept: (id: number) => api<Friend>(`/api/friends/${id}/accept`, { method: "POST" }),
+  /** Your Steam friends who use Librachieve */
+  steam: () => api<UserSearchResult[]>("/api/friends/steam"),
+  /** Befriend all of them at once (no request: they're already friends on Steam) */
+  addSteam: () => api<{ added: number }>("/api/friends/steam", { method: "POST" }),
   /** Reject or cancel a request, or remove a friend */
   remove: (id: number) => api<void>(`/api/friends/${id}`, { method: "DELETE" }),
 };

@@ -137,3 +137,19 @@ async def get_owned_games(steam_id: str) -> list[OwnedGame]:
         )
         for g in data["games"]
     ]
+
+
+async def get_friend_ids(steam_id: str) -> list[str]:
+    """SteamIDs of the user's Steam friends. Needs the friends list to be public."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{API_URL}/ISteamUser/GetFriendList/v1/",
+            params={"key": _require_key(), "steamid": steam_id, "relationship": "friend"},
+        )
+    # A private friends list answers 401 rather than an empty list
+    if resp.status_code in (401, 403):
+        raise SteamProfilePrivate(
+            "Tu lista de amigos de Steam es privada. Ponla como pública en la privacidad de Steam."
+        )
+    resp.raise_for_status()
+    return [f["steamid"] for f in resp.json().get("friendslist", {}).get("friends", [])]

@@ -1,12 +1,74 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { usersApi } from "../api/endpoints";
+import { friendsApi, usersApi } from "../api/endpoints";
 import type { Friend, UserSummary } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
 import Avatar from "../components/Avatar";
-import FriendButton, { useFriendActions, useFriends } from "../components/FriendButton";
+import FriendButton, { relationTo, useFriendActions, useFriends } from "../components/FriendButton";
+import PlatformIcon from "../components/PlatformIcon";
 import { formatDate } from "../lib/labels";
+
+function SteamFriends() {
+  const queryClient = useQueryClient();
+  const found = useQuery({
+    queryKey: ["steamFriends"], // not under "friends": friend actions must not re-ask Steam
+    queryFn: friendsApi.steam,
+    staleTime: 10 * 60_000, // each load asks Steam
+    retry: false,
+  });
+  const addAll = useMutation({
+    mutationFn: friendsApi.addSteam,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["friends"] }),
+  });
+  // The buttons read the live friends list, so count from it too
+  const friends = useFriends();
+  const missing =
+    found.data?.filter((u) => relationTo(friends.data, u.id).state !== "friends").length ?? 0;
+
+  return (
+    <section className="card space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <PlatformIcon platform="steam" title="" className="h-5 w-5" />
+          Tus amigos de Steam en Librachieve
+        </h2>
+        {missing > 0 && (
+          <button
+            className="btn-primary px-3 py-1.5"
+            disabled={addAll.isPending}
+            onClick={() => addAll.mutate()}
+          >
+            Añadir {missing === 1 ? "a 1" : `a los ${missing}`}
+          </button>
+        )}
+      </div>
+      {found.isLoading && <p className="text-sm text-slate-400">Consultando Steam…</p>}
+      {found.error && <p className="text-sm text-amber-300">{found.error.message}</p>}
+      {addAll.error && <p className="text-sm text-red-400">{addAll.error.message}</p>}
+      {found.data &&
+        (found.data.length ? (
+          <ul className="divide-y divide-slate-800">
+            {found.data.map((u) => (
+              <UserRow
+                key={u.id}
+                user={u}
+                actions={<FriendButton userId={u.id} username={u.username} />}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-400">
+            Ninguno de tus amigos de Steam usa Librachieve todavía.
+          </p>
+        ))}
+      <p className="text-xs text-slate-500">
+        Como ya sois amigos en Steam, se añaden directamente, sin solicitud.
+      </p>
+    </section>
+  );
+}
 
 function UserRow({
   user,
@@ -113,6 +175,7 @@ function FriendList({
 }
 
 export default function FriendsPage() {
+  const { user } = useAuth();
   const friends = useFriends();
   const { accept, remove } = useFriendActions();
   const busy = accept.isPending || remove.isPending;
@@ -178,6 +241,17 @@ export default function FriendsPage() {
           />
         )}
       </FriendList>
+
+      {user?.steam_id ? (
+        <SteamFriends />
+      ) : (
+        <p className="text-sm text-slate-400">
+          <Link to="/settings" className="text-indigo-400 hover:underline">
+            Vincula tu cuenta de Steam
+          </Link>{" "}
+          para añadir de golpe a tus amigos de Steam que usen Librachieve.
+        </p>
+      )}
 
       <Search />
 

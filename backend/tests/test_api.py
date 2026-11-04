@@ -588,3 +588,40 @@ async def test_daily_steam_sync_only_for_active_users(client, monkeypatch):
     async with SessionLocal() as db:
         job = await db.scalar(select(SyncJob).where(SyncJob.user_id == active.id))
         assert job.automatic is True
+
+
+async def test_add_steam_friends(client, monkeypatch):
+    from app.services import steam
+
+    me, me_headers = await _user_without_password()
+    pal, _ = await _user_without_password()
+    pending, pending_headers = await _user_without_password()
+    stranger, _ = await _user_without_password()
+
+    async def fake_friend_ids(steam_id):
+        assert steam_id == me.steam_id
+        return [pal.steam_id, pending.steam_id, "76561190000000000"]  # last one isn't here
+
+    monkeypatch.setattr(steam, "get_friend_ids", fake_friend_ids)
+    # One of them had already sent a normal request
+    req = {"username": me.username}
+    await client.post("/api/friends/requests", headers=pending_headers, json=req)
+
+    found = (await client.get("/api/friends/steam", headers=me_headers)).json()
+    assert {(u["username"], u["friendship"]) for u in found} == {
+        (pal.username, "none"),
+        (pending.username, "incoming"),
+    }
+    added = await client.post("/api/friends/steam", headers=me_headers)
+    assert added.json() == {"added": 2}
+    names = _names((await client.get("/api/friends", headers=me_headers)).json()["friends"])
+    assert sorted(names) == sorted([pal.username, pending.username])
+    assert stranger.username not in names
+    again = await client.post("/api/friends/steam", headers=me_headers)
+    assert again.json() == {"added": 0}
+
+
+async def test_steam_friends_needs_linked_account(client):
+    headers = await _register(client)
+    headers.pop("username")
+    assert (await client.get("/api/friends/steam", headers=headers)).status_code == 400

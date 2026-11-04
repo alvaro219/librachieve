@@ -22,3 +22,7 @@ class FriendsOverview(BaseModel):
     friends: list[FriendOut]
     incoming: list[FriendOut]
     outgoing: list[FriendOut]
+
+
+class SteamFriendsAdded(BaseModel):
+    added: int
