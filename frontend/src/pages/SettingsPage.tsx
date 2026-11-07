@@ -19,6 +19,12 @@ function AppSection() {
       <h2 className="font-semibold">App para Windows y Android</h2>
       {state === "installed" ? (
         <p className="text-sm text-emerald-300">✓ Estás usando Librachieve como app.</p>
+      ) : state === "elsewhere" ? (
+        <p className="text-sm text-slate-300">
+          <span className="text-emerald-300">✓ Ya la tienes instalada.</span> Ahora la estás viendo
+          en el navegador: ábrela desde el menú Inicio o el escritorio (en el móvil, desde su icono)
+          para usarla en su propia ventana.
+        </p>
       ) : (
         <>
           <p className="text-sm text-slate-400">
@@ -36,7 +42,7 @@ function AppSection() {
             </p>
           ) : (
             <p className="text-sm text-slate-300">
-              Ábrela en Chrome o Edge y elige <strong>Instalar Librachieve</strong> en el menú del
+              Ábrela en Chrome, Edge o Brave y elige <strong>Instalar Librachieve</strong> en el menú del
               navegador (en Android, <strong>Añadir a pantalla de inicio</strong>).
             </p>
           )}
