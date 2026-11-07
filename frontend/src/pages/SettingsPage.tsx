@@ -4,12 +4,47 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { authApi, usersApi } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
+import { useInstall } from "../lib/pwa";
 
 const STEAM_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   linked: { text: "Cuenta de Steam vinculada correctamente.", ok: true },
   taken: { text: "Esa cuenta de Steam ya está vinculada a otro usuario.", ok: false },
   expired: { text: "El enlace de vinculación caducó. Inténtalo de nuevo.", ok: false },
 };
+
+function AppSection() {
+  const { state, install } = useInstall();
+  return (
+    <section className="card space-y-3">
+      <h2 className="font-semibold">App para Windows y Android</h2>
+      {state === "installed" ? (
+        <p className="text-sm text-emerald-300">✓ Estás usando Librachieve como app.</p>
+      ) : (
+        <>
+          <p className="text-sm text-slate-400">
+            Instala Librachieve en tu ordenador o en el móvil: tendrá su propio icono y ventana, y
+            se actualiza sola.
+          </p>
+          {state === "available" ? (
+            <button className="btn-primary" onClick={() => void install()}>
+              Instalar app
+            </button>
+          ) : state === "ios" ? (
+            <p className="text-sm text-slate-300">
+              En iPhone o iPad: abre la web en Safari, pulsa <strong>Compartir</strong> y luego{" "}
+              <strong>Añadir a pantalla de inicio</strong>.
+            </p>
+          ) : (
+            <p className="text-sm text-slate-300">
+              Ábrela en Chrome o Edge y elige <strong>Instalar Librachieve</strong> en el menú del
+              navegador (en Android, <strong>Añadir a pantalla de inicio</strong>).
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
 
 function PasswordSection({
   hasPassword,
@@ -118,7 +153,13 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Ajustes</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">Ajustes</h1>
+        {/* On wide screens "Salir" lives in the header */}
+        <button onClick={() => void logout()} className="btn-secondary px-3 py-1.5 md:hidden">
+          Cerrar sesión
+        </button>
+      </div>
 
       {steamMsg && (
         <p
@@ -193,6 +234,8 @@ export default function SettingsPage() {
           </button>
         )}
       </section>
+
+      <AppSection />
 
       <section className="card space-y-3 border-red-900/60">
         <h2 className="font-semibold text-red-300">Zona peligrosa</h2>

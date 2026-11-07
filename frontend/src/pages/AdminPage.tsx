@@ -170,7 +170,7 @@ export default function AdminPage() {
             <tbody className="divide-y divide-slate-800">
               {users.data?.items.map((u) => (
                 <tr key={u.id}>
-                  <td className="py-2">
+                  <td className="py-2 pr-4">
                     <span className="flex items-center gap-2">
                       <Avatar user={u} className="h-7 w-7 text-xs" />
                       <Link to={`/u/${u.username}`} className="font-medium hover:underline">
@@ -191,7 +191,7 @@ export default function AdminPage() {
                       {!u.is_public && <span className="text-xs text-slate-500">privado</span>}
                     </span>
                   </td>
-                  <td className="text-slate-400">{u.email ?? "—"}</td>
+                  <td className="pr-4 text-slate-400">{u.email ?? "—"}</td>
                   <td className="text-right tabular-nums">{u.games}</td>
                   <td className="whitespace-nowrap pl-6 text-slate-400">{formatDate(u.created_at)}</td>
                   <td className="whitespace-nowrap pl-4 text-slate-400">

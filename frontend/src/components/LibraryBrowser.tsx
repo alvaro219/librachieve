@@ -80,6 +80,7 @@ export default function LibraryBrowser({ username }: Props) {
   const [editing, setEditing] = useState<LibraryEntry | null>(null);
   const [viewing, setViewing] = useState<LibraryEntry | null>(null);
   const [adding, setAdding] = useState(false);
+  const [showFilters, setShowFilters] = useState(false); // mobile: toolbar folded by default
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -136,6 +137,7 @@ export default function LibraryBrowser({ username }: Props) {
 
   const total = library.data?.total ?? 0;
   const pages = Math.ceil(total / PAGE_SIZE);
+  const activeFilters = [platform, genre, minRating !== null, favoritesOnly].filter(Boolean).length;
 
   const tab = (value: GameStatus | null, label: string) => (
     <button
@@ -179,27 +181,44 @@ export default function LibraryBrowser({ username }: Props) {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <input
-          className="input flex-1"
+          className="input min-w-0 flex-1"
+          type="search"
           placeholder="Buscar por título…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
+        <button
+          type="button"
+          className={`btn-secondary shrink-0 px-3 md:hidden ${
+            activeFilters ? "border-indigo-500/70 text-indigo-200" : ""
+          }`}
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+        >
+          Filtros{activeFilters > 0 && ` (${activeFilters})`}
+        </button>
         {editable && (
-          <button className="btn-primary shrink-0" onClick={() => setAdding(true)}>
-            + Añadir juego
+          <button
+            className="btn-primary shrink-0 px-3 sm:px-4"
+            onClick={() => setAdding(true)}
+            title="Añadir juego"
+          >
+            +<span className="hidden sm:inline"> Añadir juego</span>
           </button>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div
+        className={`${showFilters ? "flex" : "hidden"} flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3 md:flex`}
+      >
+        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
+          <span className="mr-1 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 md:inline">
             Filtrar
           </span>
           <select
-            className="input w-auto"
+            className="input w-full sm:w-auto"
             value={platform}
             onChange={(e) => setPlatform(e.target.value as Platform | "")}
             aria-label="Plataforma"
@@ -212,7 +231,7 @@ export default function LibraryBrowser({ username }: Props) {
             ))}
           </select>
           <select
-            className="input w-auto max-w-[13rem]"
+            className="input w-full sm:w-auto sm:max-w-[13rem]"
             value={genre}
             onChange={(e) => setGenre(e.target.value)}
             aria-label="Género"
@@ -225,13 +244,13 @@ export default function LibraryBrowser({ username }: Props) {
             ))}
           </select>
           <div
-            className={`flex items-center rounded-lg border bg-slate-900 pl-3 text-sm ${
+            className={`flex w-full items-center rounded-lg border bg-slate-900 pl-3 text-sm sm:w-auto ${
               minRating !== null ? "border-indigo-500/70" : "border-slate-700"
             }`}
           >
             <span className="text-slate-400">Nota</span>
             <select
-              className="cursor-pointer bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none"
+              className="min-w-0 flex-1 cursor-pointer bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none sm:flex-none"
               value={ratingSource}
               onChange={(e) => setRatingSource(e.target.value as RatingSource)}
               aria-label="Fuente de la nota"
@@ -243,7 +262,7 @@ export default function LibraryBrowser({ username }: Props) {
               ))}
             </select>
             <select
-              className="cursor-pointer border-l border-slate-700 bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none"
+              className="min-w-0 flex-1 cursor-pointer rounded-r-lg border-l border-slate-700 bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none sm:flex-none"
               value={minRating ?? ""}
               onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : null)}
               aria-label="Nota mínima"
@@ -268,7 +287,7 @@ export default function LibraryBrowser({ username }: Props) {
           >
             {favoritesOnly ? "★" : "☆"} Favoritos
           </button>
-          {(platform || genre || minRating !== null || favoritesOnly) && (
+          {activeFilters > 0 && (
             <button
               type="button"
               className="px-2 text-sm text-slate-400 underline-offset-2 hover:text-white hover:underline"
@@ -284,12 +303,12 @@ export default function LibraryBrowser({ username }: Props) {
           )}
         </div>
 
-        <label className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <label className="flex w-full items-center gap-2 md:w-auto">
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Ordenar por
           </span>
           <select
-            className="input w-auto"
+            className="input min-w-0 flex-1 md:w-auto md:flex-none"
             value={sort}
             onChange={(e) => setSort(e.target.value as SortValue)}
           >

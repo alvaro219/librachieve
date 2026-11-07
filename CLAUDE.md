@@ -44,6 +44,7 @@ Librachieve is a full-stack web application for personal video game library mana
 - Auth endpoints (plus password change and friend requests) are rate limited in Redis (`app/core/ratelimit.py`); tests reset `ratelimit:*` keys.
 - Never log or store raw httpx errors: Steam Web API URLs carry our API key in the query string. Use `app.core.http.describe_error`. Secrets go in headers or request bodies, never in URLs we control.
 - Legal pages (`/privacidad`, `/aviso-legal`) are required (Spain/GDPR); owner data lives in `frontend/src/lib/site.ts`.
+- Installable PWA (`public/site.webmanifest`, `public/sw.js`, `src/lib/pwa.ts`); the worker registers only in production builds. It must never cache `/api` or `/graphql` (user data, cookie flows); bump `VERSION` in `sw.js` to drop old caches. Mobile layout: bottom tab bar below `md`, header nav from `md` up. Native wrappers (Tauri/Capacitor) are deferred until there is a server; Play Store and code signing cost money.
 - Postgres enum types are created/dropped explicitly in migrations (autogenerate doesn't handle shared enums or drop them on downgrade).
 
 ## Commands

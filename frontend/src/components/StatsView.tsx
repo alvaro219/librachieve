@@ -5,9 +5,9 @@ import PlatformIcon from "./PlatformIcon";
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="card">
+    <div className="card p-4 sm:p-5">
       <p className="text-sm text-slate-400">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tabular-nums text-slate-50">{value}</p>
+      <p className="mt-1 text-2xl sm:text-3xl font-semibold tabular-nums text-slate-50">{value}</p>
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
   );
@@ -17,7 +17,7 @@ export default function StatsView({ stats }: { stats: UserStats }) {
   const owned = stats.total_games - (stats.games_by_status.wishlist ?? 0);
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile label="Juegos" value={String(stats.total_games)} hint={`${owned} en propiedad`} />
         <StatTile
           label="Tiempo de juego"

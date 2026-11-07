@@ -89,6 +89,15 @@ No tienen API pública, así que se importan con un fichero JSON/CSV. Lo más c�
 complemento exportador de biblioteca: el fichero indica la tienda de cada juego y Librachieve lo
 reparte solo. Volver a importar actualiza sin duplicar.
 
+## App para Windows y Android
+
+La web es una PWA: desde Chrome o Edge se instala como app (Ajustes → «Instalar app», o el menú del
+navegador) con su icono y ventana propios, y se actualiza sola con cada despliegue. En el móvil usa una
+barra de pestañas abajo. El service worker (`frontend/public/sw.js`) no guarda nunca datos de la API:
+solo los ficheros de la web y una página de «Sin conexión». Para probarlo en local hace falta la
+build de producción: `cd frontend && npm run build && npm run preview` (puerto 4173, con el mismo
+proxy a la API).
+
 ## Desarrollo
 
 Consulta [CLAUDE.md](CLAUDE.md) para las reglas del proyecto y los comandos de tests, migraciones y administración.

@@ -8,6 +8,11 @@ const apiTarget = process.env.VITE_API_PROXY ?? "http://localhost:8000";
 // Absolute site URL for social previews (index.html og:image). Production builds pass it in.
 process.env.VITE_SITE_URL ??= "http://localhost:5173";
 
+const proxy = {
+  "/api": { target: apiTarget, changeOrigin: false },
+  "/graphql": { target: apiTarget, changeOrigin: false },
+};
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
@@ -15,9 +20,9 @@ export default defineConfig({
     port: 5173,
     // Bind mounts from Windows/macOS hosts do not deliver file events into Docker; poll there.
     watch: process.env.VITE_USE_POLLING ? { usePolling: true, interval: 300 } : undefined,
-    proxy: {
-      "/api": { target: apiTarget, changeOrigin: false },
-      "/graphql": { target: apiTarget, changeOrigin: false },
-    },
+    proxy,
   },
+  // `npm run build && npm run preview`: the production build (with the service worker),
+  // same single origin as dev
+  preview: { host: true, port: 4173, proxy },
 });
