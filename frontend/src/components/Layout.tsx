@@ -111,6 +111,21 @@ export default function Layout() {
           <div className="ml-auto flex min-w-0 items-center gap-3">
             {user ? (
               <>
+                {/* Admins only; on wide screens it's in the main nav */}
+                {isAdmin && (
+                  <NavLink
+                    to="/admin"
+                    className={({ isActive }) =>
+                      `rounded-lg p-2 transition md:hidden ${
+                        isActive ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white"
+                      }`
+                    }
+                    title="Administración"
+                    aria-label="Administración"
+                  >
+                    <TabIcon name="admin" />
+                  </NavLink>
+                )}
                 <NavLink to="/settings" className={navClass} title="Ajustes">
                   <span className="flex min-w-0 items-center gap-2">
                     <UserAvatar src={user.avatar_url} name={user.username} />
@@ -161,12 +176,6 @@ export default function Layout() {
               Amigos
               <Badge count={pending} className="absolute left-1/2 top-1 ml-2" />
             </NavLink>
-            {isAdmin && (
-              <NavLink to="/admin" className={tabClass}>
-                <TabIcon name="admin" />
-                Admin
-              </NavLink>
-            )}
           </nav>
         </>
       )}
