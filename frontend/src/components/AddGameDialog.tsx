@@ -1,10 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ApiError } from "../api/client";
 import { gamesApi, libraryApi } from "../api/endpoints";
 import type { GameStatus, LibraryEntryCreate, Platform } from "../api/types";
-import { PLATFORMS, PLATFORM_LABELS, STATUS_LABELS, STATUS_ORDER } from "../lib/labels";
+import {
+  PLATFORMS,
+  PLATFORM_LABELS,
+  STATUS_LABELS,
+  STATUS_ORDER,
+  genreLabel,
+} from "../lib/labels";
 import Modal from "./Modal";
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -17,6 +24,7 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export default function AddGameDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState<Platform>("other");
@@ -41,11 +49,11 @@ export default function AddGameDialog({ onClose }: { onClose: () => void }) {
   });
 
   return (
-    <Modal title="Añadir juego" onClose={onClose}>
+    <Modal title={t("addGame.title")} onClose={onClose}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
-            <span className="mb-1 block text-slate-300">Plataforma</span>
+            <span className="mb-1 block text-slate-300">{t("addGame.platform")}</span>
             <select
               className="input"
               value={platform}
@@ -59,7 +67,7 @@ export default function AddGameDialog({ onClose }: { onClose: () => void }) {
             </select>
           </label>
           <label className="text-sm">
-            <span className="mb-1 block text-slate-300">Categoría</span>
+            <span className="mb-1 block text-slate-300">{t("addGame.category")}</span>
             <select
               className="input"
               value={status}
@@ -77,17 +85,17 @@ export default function AddGameDialog({ onClose }: { onClose: () => void }) {
         <input
           autoFocus
           className="input"
-          placeholder="Busca un juego por título…"
+          placeholder={t("addGame.search")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
 
         {igdbUnavailable && (
           <p className="text-xs text-amber-300">
-            La búsqueda en IGDB no está configurada; se añadirá solo con el título.
+            {t("addGame.igdbUnavailable")}
           </p>
         )}
-        {search.isFetching && <p className="text-sm text-slate-400">Buscando…</p>}
+        {search.isFetching && <p className="text-sm text-slate-400">{t("common.searching")}</p>}
 
         <ul className="max-h-72 space-y-1 overflow-y-auto">
           {search.data?.map((r) => (
@@ -106,7 +114,7 @@ export default function AddGameDialog({ onClose }: { onClose: () => void }) {
                 <div>
                   <p className="text-sm font-medium">{r.title}</p>
                   <p className="text-xs text-slate-400">
-                    {[r.release_date?.slice(0, 4), r.genres.slice(0, 2).join(", ")]
+                    {[r.release_date?.slice(0, 4), r.genres.slice(0, 2).map(genreLabel).join(", ")]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
@@ -123,7 +131,7 @@ export default function AddGameDialog({ onClose }: { onClose: () => void }) {
             disabled={add.isPending}
             onClick={() => add.mutate({ title: query.trim() })}
           >
-            Añadir «{query.trim()}» sin datos de IGDB
+            {t("addGame.addWithoutIgdb", { title: query.trim() })}
           </button>
         )}
 

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 
 import { usersApi } from "../api/endpoints";
@@ -12,6 +13,7 @@ import { formatDate } from "../lib/labels";
 export default function ProfilePage() {
   const { username = "" } = useParams();
   const { user: me } = useAuth();
+  const { t } = useTranslation();
   const profile = useQuery({
     queryKey: ["profile", username],
     queryFn: () => usersApi.profile(username),
@@ -23,10 +25,10 @@ export default function ProfilePage() {
     enabled: profile.isSuccess,
   });
 
-  if (profile.isLoading) return <p className="text-slate-400">Cargando perfil…</p>;
+  if (profile.isLoading) return <p className="text-slate-400">{t("profile.loading")}</p>;
   if (profile.error) {
     return (
-      <div className="card text-center text-slate-400">Este perfil no existe o es privado.</div>
+      <div className="card text-center text-slate-400">{t("profile.notFound")}</div>
     );
   }
 
@@ -37,7 +39,9 @@ export default function ProfilePage() {
         <Avatar user={user} className="h-16 w-16 text-2xl" />
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{user.username}</h1>
-          <p className="text-sm text-slate-400">Miembro desde {formatDate(user.created_at)}</p>
+          <p className="text-sm text-slate-400">
+            {t("profile.memberSince", { date: formatDate(user.created_at) })}
+          </p>
         </div>
         {me && me.id !== user.id && <FriendButton userId={user.id} username={user.username} />}
       </div>

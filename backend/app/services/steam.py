@@ -24,7 +24,11 @@ class SteamError(RuntimeError):
 
 
 class SteamProfilePrivate(SteamError):
-    pass
+    """Steam data hidden by the user's privacy settings. `code` is an app.core.i18n message."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
 
 
 @dataclass
@@ -120,9 +124,7 @@ async def get_owned_games(steam_id: str) -> list[OwnedGame]:
     if "games" not in data:
         if data.get("game_count") == 0:
             return []
-        raise SteamProfilePrivate(
-            "Steam returned no games. Set 'Game details' to Public in your Steam privacy settings."
-        )
+        raise SteamProfilePrivate("steam_games_private")
 
     return [
         OwnedGame(
@@ -148,8 +150,6 @@ async def get_friend_ids(steam_id: str) -> list[str]:
         )
     # A private friends list answers 401 rather than an empty list
     if resp.status_code in (401, 403):
-        raise SteamProfilePrivate(
-            "Tu lista de amigos de Steam es privada. Ponla como pública en la privacidad de Steam."
-        )
+        raise SteamProfilePrivate("steam_friends_private")
     resp.raise_for_status()
     return [f["steamid"] for f in resp.json().get("friendslist", {}).get("friends", [])]

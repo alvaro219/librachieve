@@ -65,7 +65,7 @@ async def sync_steam(ctx: dict, job_id: int, steam_id: str) -> int:
                 )
                 await db.rollback()
                 job = await db.get(SyncJob, job_id)
-                job.error = "Biblioteca importada, pero falló la sincronización de logros."
+                job.error = "achievements_failed"  # a code: the frontend translates it
             job.status = SyncJobStatus.SUCCESS
         except Exception as e:  # any failure must leave the job in a terminal state
             if not isinstance(e, steam.SteamError | httpx.HTTPError):
@@ -73,7 +73,10 @@ async def sync_steam(ctx: dict, job_id: int, steam_id: str) -> int:
             await db.rollback()
             job = await db.get(SyncJob, job_id)
             job.status = SyncJobStatus.FAILED
-            job.error = describe_error(e)[:1000]
+            # Known Steam problems are stored as codes (translated by the frontend)
+            job.error = (
+                e.code if isinstance(e, steam.SteamProfilePrivate) else describe_error(e)[:1000]
+            )
             new_game_ids = []
         job.finished_at = _now()
         await db.commit()

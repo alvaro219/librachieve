@@ -1,6 +1,7 @@
 """Steam achievements sync (official Steam Web API).
 
-Per game: the schema (names, icons, in Spanish) and global unlock percentages are shared by all
+Per game: the schema (names and descriptions in every UI language, icons) and global unlock
+percentages are shared by all
 users and refreshed at most weekly; the player's unlocks are fetched on every sync, but only for
 games with playtime (an unplayed game can't have unlocks).
 """
@@ -24,13 +25,17 @@ logger = logging.getLogger(__name__)
 
 API_URL = "https://api.steampowered.com/ISteamUserStats"
 SCHEMA_TTL_SECONDS = 7 * 24 * 3600
-LANGUAGE = "spanish"
+# UI language -> Steam's language parameter. English is the base row; all go into `localized`.
+STEAM_LANGUAGES = {"en": "english", "es": "spanish", "fr": "french"}
+# Bump when the stored schema changes, so every game is fetched again
+SCHEMA_KEY = "steam:achievements-schema:v2:{appid}"
 _CONCURRENCY = 6
 
 
 @dataclass
 class _SteamGameData:
-    schema: list[dict] | None = None  # None = not refreshed this time
+    schema: list[dict] | None = None  # None = not refreshed this time (English)
+    localized: dict[str, dict[str, dict]] = field(default_factory=dict)  # lang -> api_name -> a
     global_percent: dict[str, float] = field(default_factory=dict)
     player: dict[str, int] | None = None  # api_name -> unlock unix time (0 = locked)
 
@@ -55,13 +60,19 @@ async def _fetch_game(
     data = _SteamGameData()
     async with sem:
         if refresh_schema:
-            schema = await _get_json(
-                client,
-                f"{API_URL}/GetSchemaForGame/v2/",
-                {"key": settings.steam_api_key, "appid": appid, "l": LANGUAGE},
-            )
-            stats = ((schema or {}).get("game") or {}).get("availableGameStats") or {}
-            data.schema = stats.get("achievements") or []
+            for lang, steam_lang in STEAM_LANGUAGES.items():
+                schema = await _get_json(
+                    client,
+                    f"{API_URL}/GetSchemaForGame/v2/",
+                    {"key": settings.steam_api_key, "appid": appid, "l": steam_lang},
+                )
+                stats = ((schema or {}).get("game") or {}).get("availableGameStats") or {}
+                achievements = stats.get("achievements") or []
+                if lang == "en":
+                    data.schema = achievements
+                    if not achievements:
+                        break  # no achievements: no need to ask in other languages
+                data.localized[lang] = {a["name"]: a for a in achievements if a.get("name")}
             if data.schema:
                 pct = await _get_json(
                     client,
@@ -97,6 +108,14 @@ async def _store_schema(db: AsyncSession, game_id: int, data: _SteamGameData) ->
             "api_name": a["name"],
             "name": (a.get("displayName") or a["name"])[:255],
             "description": a.get("description") or None,
+            "localized": {
+                lang: {
+                    "name": (t.get("displayName") or a.get("displayName") or a["name"])[:255],
+                    "description": t.get("description") or a.get("description") or None,
+                }
+                for lang, by_name in data.localized.items()
+                if (t := by_name.get(a["name"])) is not None
+            },
             "icon_url": a.get("icon"),
             "icon_locked_url": a.get("icongray"),
             "hidden": bool(a.get("hidden")),
@@ -111,6 +130,7 @@ async def _store_schema(db: AsyncSession, game_id: int, data: _SteamGameData) ->
         cols = (
             "name",
             "description",
+            "localized",
             "icon_url",
             "icon_locked_url",
             "hidden",
@@ -214,7 +234,7 @@ async def sync_steam_achievements(
     sem = asyncio.Semaphore(_CONCURRENCY)
     plans = []
     for entry, appid in rows:
-        fresh = await redis.exists(f"steam:achievements-schema:{appid}")
+        fresh = await redis.exists(SCHEMA_KEY.format(appid=appid))
         plans.append((entry, appid, not fresh, entry.playtime_minutes > 0))
 
     async with httpx.AsyncClient(timeout=20) as client:
@@ -233,7 +253,7 @@ async def sync_steam_achievements(
             continue
         if data.schema is not None:
             await _store_schema(db, entry.game_id, data)
-            await redis.set(f"steam:achievements-schema:{appid}", "1", ex=SCHEMA_TTL_SECONDS)
+            await redis.set(SCHEMA_KEY.format(appid=appid), "1", ex=SCHEMA_TTL_SECONDS)
         if data.player:
             await _store_player(db, user_id, entry.game_id, data.player)
         await _refresh_counters(db, entry)

@@ -1,8 +1,9 @@
 """Fixed-window rate limiting backed by Redis (shared by every API process)."""
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request, status
 from redis.asyncio import Redis
 
+from app.core.i18n import ApiError
 from app.core.redis import get_redis
 
 
@@ -19,9 +20,9 @@ async def hit(redis: Redis, key: str, limit: int, window_seconds: int) -> None:
         await redis.expire(full_key, window_seconds)
     if count > limit:
         retry = await redis.ttl(full_key)
-        raise HTTPException(
+        raise ApiError(
             status.HTTP_429_TOO_MANY_REQUESTS,
-            "Demasiados intentos. Espera unos minutos y vuelve a probar.",
+            "rate_limited",
             headers={"Retry-After": str(max(retry, 1))},
         )
 

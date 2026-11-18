@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 interface Props {
   value: string;
   folders: string[];
@@ -6,6 +8,7 @@ interface Props {
 
 /** Free-text folder name with the existing folders as one-click chips (no native datalist). */
 export default function FolderPicker({ value, folders, onChange }: Props) {
+  const { t } = useTranslation();
   const typed = value.trim().toLowerCase();
   const matches = folders.filter((f) => !typed || f.toLowerCase().includes(typed));
   const isNew = typed !== "" && !folders.some((f) => f.toLowerCase() === typed);
@@ -13,7 +16,7 @@ export default function FolderPicker({ value, folders, onChange }: Props) {
   return (
     <div className="text-sm">
       <label htmlFor="folder-input" className="mb-1 block text-slate-300">
-        Carpeta
+        {t("folder.label")}
       </label>
       <input
         id="folder-input"
@@ -21,7 +24,7 @@ export default function FolderPicker({ value, folders, onChange }: Props) {
         value={value}
         maxLength={64}
         autoComplete="off"
-        placeholder={folders.length ? "Elige una o escribe una nueva…" : "p. ej. Cooperativo, Retro…"}
+        placeholder={folders.length ? t("folder.pickOrType") : t("folder.example")}
         onChange={(e) => onChange(e.target.value)}
       />
 
@@ -47,7 +50,7 @@ export default function FolderPicker({ value, folders, onChange }: Props) {
           })}
           {isNew && (
             <span className="text-xs text-slate-400">
-              Se creará la carpeta «{value.trim()}»
+              {t("folder.willCreate", { name: value.trim() })}
             </span>
           )}
         </div>

@@ -1,49 +1,48 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { authApi, usersApi } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
+import LanguageSelect from "../components/LanguageSelect";
 import { useInstall } from "../lib/pwa";
 
-const STEAM_MESSAGES: Record<string, { text: string; ok: boolean }> = {
-  linked: { text: "Cuenta de Steam vinculada correctamente.", ok: true },
-  taken: { text: "Esa cuenta de Steam ya está vinculada a otro usuario.", ok: false },
-  expired: { text: "El enlace de vinculación caducó. Inténtalo de nuevo.", ok: false },
-};
+const STEAM_MESSAGES = {
+  linked: { text: "settings.steamLinked", ok: true },
+  taken: { text: "settings.steamTaken", ok: false },
+  expired: { text: "settings.steamExpired", ok: false },
+} as const;
 
 function AppSection() {
+  const { t } = useTranslation();
   const { state, install } = useInstall();
   return (
     <section className="card space-y-3">
-      <h2 className="font-semibold">App para Windows y Android</h2>
+      <h2 className="font-semibold">{t("settings.app.title")}</h2>
       {state === "installed" ? (
-        <p className="text-sm text-emerald-300">✓ Estás usando Librachieve como app.</p>
+        <p className="text-sm text-emerald-300">✓ {t("settings.app.installed")}</p>
       ) : state === "elsewhere" ? (
         <p className="text-sm text-slate-300">
-          <span className="text-emerald-300">✓ Ya la tienes instalada.</span> Ahora la estás viendo
-          en el navegador: ábrela desde el menú Inicio o el escritorio (en el móvil, desde su icono)
-          para usarla en su propia ventana.
+          <span className="text-emerald-300">✓ {t("settings.app.elsewhereTitle")}</span>{" "}
+          {t("settings.app.elsewhere")}
         </p>
       ) : (
         <>
           <p className="text-sm text-slate-400">
-            Instala Librachieve en tu ordenador o en el móvil: tendrá su propio icono y ventana, y
-            se actualiza sola.
+            {t("settings.app.pitch")}
           </p>
           {state === "available" ? (
             <button className="btn-primary" onClick={() => void install()}>
-              Instalar app
+              {t("settings.app.install")}
             </button>
           ) : state === "ios" ? (
             <p className="text-sm text-slate-300">
-              En iPhone o iPad: abre la web en Safari, pulsa <strong>Compartir</strong> y luego{" "}
-              <strong>Añadir a pantalla de inicio</strong>.
+              <Trans i18nKey="settings.app.ios" components={{ strong: <strong /> }} />
             </p>
           ) : (
             <p className="text-sm text-slate-300">
-              Ábrela en Chrome, Edge o Brave y elige <strong>Instalar Librachieve</strong> en el menú del
-              navegador (en Android, <strong>Añadir a pantalla de inicio</strong>).
+              <Trans i18nKey="settings.app.manual" components={{ strong: <strong /> }} />
             </p>
           )}
         </>
@@ -59,6 +58,7 @@ function PasswordSection({
   hasPassword: boolean;
   onChanged: () => void;
 }) {
+  const { t } = useTranslation();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [repeat, setRepeat] = useState("");
@@ -75,10 +75,10 @@ function PasswordSection({
 
   return (
     <section className="card space-y-3">
-      <h2 className="font-semibold">Contraseña</h2>
+      <h2 className="font-semibold">{t("settings.password.title")}</h2>
       {!hasPassword && (
         <p className="text-sm text-slate-400">
-          Entras con Steam. Si creas una contraseña, también podrás entrar con tu nombre de usuario.
+          {t("settings.password.steamOnly")}
         </p>
       )}
       <form
@@ -96,7 +96,7 @@ function PasswordSection({
             className="input"
             type="password"
             autoComplete="current-password"
-            placeholder="Contraseña actual"
+            placeholder={t("settings.password.current")}
             value={current}
             required
             onChange={(e) => setCurrent(e.target.value)}
@@ -106,7 +106,7 @@ function PasswordSection({
           className="input"
           type="password"
           autoComplete="new-password"
-          placeholder="Nueva contraseña (mínimo 8 caracteres)"
+          placeholder={t("settings.password.new")}
           minLength={8}
           maxLength={128}
           value={next}
@@ -117,19 +117,19 @@ function PasswordSection({
           className="input"
           type="password"
           autoComplete="new-password"
-          placeholder="Repite la nueva contraseña"
+          placeholder={t("settings.password.repeat")}
           value={repeat}
           required
           onChange={(e) => setRepeat(e.target.value)}
         />
-        {mismatch && <p className="text-sm text-amber-300">Las contraseñas no coinciden.</p>}
+        {mismatch && <p className="text-sm text-amber-300">{t("settings.password.mismatch")}</p>}
         {change.error && <p className="text-sm text-red-400">{change.error.message}</p>}
-        {change.isSuccess && <p className="text-sm text-emerald-400">✓ Contraseña guardada.</p>}
+        {change.isSuccess && <p className="text-sm text-emerald-400">✓ {t("settings.password.saved")}</p>}
         <button
           className="btn-primary justify-self-start"
           disabled={change.isPending || mismatch || next.length < 8}
         >
-          {hasPassword ? "Cambiar contraseña" : "Crear contraseña"}
+          {hasPassword ? t("settings.password.change") : t("settings.password.create")}
         </button>
       </form>
     </section>
@@ -138,9 +138,10 @@ function PasswordSection({
 
 export default function SettingsPage() {
   const { user, setUser, logout } = useAuth();
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const [username, setUsername] = useState(user!.username);
-  const steamMsg = STEAM_MESSAGES[params.get("steam") ?? ""];
+  const steamMsg = STEAM_MESSAGES[(params.get("steam") ?? "") as keyof typeof STEAM_MESSAGES];
 
   const update = useMutation({
     mutationFn: usersApi.updateMe,
@@ -160,10 +161,10 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Ajustes</h1>
+        <h1 className="text-2xl font-bold">{t("nav.settings")}</h1>
         {/* On wide screens "Salir" lives in the header */}
         <button onClick={() => void logout()} className="btn-secondary px-3 py-1.5 md:hidden">
-          Cerrar sesión
+          {t("settings.logout")}
         </button>
       </div>
 
@@ -176,12 +177,12 @@ export default function SettingsPage() {
           }`}
         >
           {steamMsg.ok ? "✓ " : "✕ "}
-          {steamMsg.text}
+          {t(steamMsg.text)}
         </p>
       )}
 
       <section className="card space-y-4">
-        <h2 className="font-semibold">Perfil</h2>
+        <h2 className="font-semibold">{t("settings.profile")}</h2>
         <form
           className="flex gap-3"
           onSubmit={(e) => {
@@ -196,15 +197,15 @@ export default function SettingsPage() {
             onChange={(e) => setUsername(e.target.value)}
           />
           <button className="btn-primary" disabled={update.isPending || username === user.username}>
-            Guardar
+            {t("common.save")}
           </button>
         </form>
 
         <label className="flex items-center justify-between gap-4">
           <span>
-            <span className="block text-sm font-medium">Perfil público</span>
+            <span className="block text-sm font-medium">{t("settings.public")}</span>
             <span className="text-xs text-slate-400">
-              Cualquiera podrá ver tu biblioteca y estadísticas en{" "}
+              {t("settings.publicHint")}{" "}
               <Link to={`/u/${user.username}`} className="text-indigo-400 hover:underline">
                 /u/{user.username}
               </Link>
@@ -229,34 +230,39 @@ export default function SettingsPage() {
       <section className="card space-y-3">
         <h2 className="font-semibold">Steam</h2>
         {user.steam_id ? (
-          <p className="text-sm text-slate-400">Vinculada: SteamID {user.steam_id}</p>
+          <p className="text-sm text-slate-400">{t("settings.steamLinkedId", { id: user.steam_id })}</p>
         ) : (
           <button
             className="btn-secondary"
             disabled={linkSteam.isPending}
             onClick={() => linkSteam.mutate()}
           >
-            Vincular cuenta de Steam
+            {t("settings.linkSteam")}
           </button>
         )}
+      </section>
+
+      <section className="card flex items-center justify-between gap-4">
+        <h2 className="font-semibold">{t("common.language")}</h2>
+        <LanguageSelect className="text-sm" />
       </section>
 
       <AppSection />
 
       <section className="card space-y-3 border-red-900/60">
-        <h2 className="font-semibold text-red-300">Zona peligrosa</h2>
+        <h2 className="font-semibold text-red-300">{t("settings.danger")}</h2>
         <p className="text-sm text-slate-400">
-          Eliminar la cuenta borra tu biblioteca y tus estadísticas de forma permanente.
+          {t("settings.deleteHint")}
         </p>
         <button
           className="btn-danger"
           disabled={deleteAccount.isPending}
           onClick={() =>
-            confirm("¿Seguro que quieres eliminar tu cuenta? No se puede deshacer.") &&
+            confirm(t("settings.deleteConfirm")) &&
             deleteAccount.mutate()
           }
         >
-          Eliminar cuenta
+          {t("settings.delete")}
         </button>
       </section>
     </div>

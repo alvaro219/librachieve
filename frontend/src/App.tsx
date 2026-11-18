@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
@@ -19,12 +20,14 @@ import StatsPage from "./pages/StatsPage";
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <p className="p-8 text-slate-400">Cargando…</p>;
+  const { t } = useTranslation();
+  if (loading) return <p className="p-8 text-slate-400">{t("common.loading")}</p>;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return <>{children}</>;
 }
 
 export default function App() {
+  useTranslation(); // re-render everything when the language changes
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

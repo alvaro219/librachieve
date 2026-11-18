@@ -1,13 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 
 import { authApi, syncApi } from "../api/endpoints";
 import type { Platform } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import PlatformIcon from "../components/PlatformIcon";
+import i18n from "../i18n";
 import { PLATFORM_LABELS, SYNC_STATUS_LABELS, formatDate } from "../lib/labels";
 
 const MANUAL_PLATFORMS: Platform[] = ["epic", "gog", "amazon", "other"];
+
+// Errors the worker stores as codes (and the Spanish text it stored before codes existed)
+const JOB_ERRORS: Record<
+  string,
+  "importPage.errors.achievements" | "importPage.errors.steamGamesPrivate"
+> = {
+  achievements_failed: "importPage.errors.achievements",
+  "Biblioteca importada, pero falló la sincronización de logros.": "importPage.errors.achievements",
+  steam_games_private: "importPage.errors.steamGamesPrivate",
+  "Steam returned no games. Set 'Game details' to Public in your Steam privacy settings.":
+    "importPage.errors.steamGamesPrivate",
+};
+const jobError = (error: string) => (JOB_ERRORS[error] ? i18n.t(JOB_ERRORS[error]) : error);
 
 const EXAMPLE_JSON = `[
   { "title": "Hades", "playtime_hours": 25, "status": "completed" },
@@ -19,6 +34,7 @@ Celeste,5,playing`;
 
 export default function ImportPage() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [platform, setPlatform] = useState<Platform>("epic");
@@ -53,7 +69,7 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Importar biblioteca</h1>
+      <h1 className="text-2xl font-bold">{t("importPage.title")}</h1>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card space-y-4">
@@ -64,33 +80,30 @@ export default function ImportPage() {
           {user?.steam_id ? (
             <>
               <p className="text-sm text-slate-400">
-                Cuenta vinculada (SteamID {user.steam_id}). La sincronización importa todos tus
-                juegos y su tiempo de juego. Necesitas tener los «Detalles de juegos» como públicos
-                en la privacidad de Steam.
+                {t("importPage.steamLinked", { id: user.steam_id })}
               </p>
               <p className="text-sm text-slate-400">
-                Además se sincroniza sola cada noche si has entrado en Librachieve en los últimos 30
-                días.
+                {t("importPage.nightly")}
               </p>
               <button
                 className="btn-primary"
                 disabled={steamSync.isPending}
                 onClick={() => steamSync.mutate()}
               >
-                Sincronizar con Steam
+                {t("importPage.syncSteam")}
               </button>
             </>
           ) : (
             <>
               <p className="text-sm text-slate-400">
-                Vincula tu cuenta de Steam para importar tus juegos automáticamente.
+                {t("importPage.linkHint")}
               </p>
               <button
                 className="btn-primary"
                 disabled={linkSteam.isPending}
                 onClick={() => linkSteam.mutate()}
               >
-                Vincular Steam
+                {t("importPage.linkSteam")}
               </button>
             </>
           )}
@@ -106,39 +119,40 @@ export default function ImportPage() {
                 <PlatformIcon key={p} platform={p} title="" className="h-5 w-5" />
               ))}
             </span>
-            Epic, GOG, Amazon u otras (JSON / CSV)
+            {t("importPage.fileTitle")}
           </h2>
           <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-3 text-sm text-slate-300">
             <p className="mb-1 font-medium text-indigo-200">
-              Lo más fácil: exporta tu biblioteca con Playnite
+              {t("importPage.playnite.title")}
             </p>
             <ol className="list-decimal space-y-0.5 pl-5">
               <li>
-                Instala{" "}
-                <a
-                  href="https://playnite.link"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-indigo-300 underline"
-                >
-                  Playnite
-                </a>{" "}
-                (gratis) y conecta tus tiendas: Epic, GOG, Amazon…
+                <Trans
+                  i18nKey="importPage.playnite.step1"
+                  components={{
+                    link: (
+                      <a
+                        href="https://playnite.link"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-indigo-300 underline"
+                      />
+                    ),
+                  }}
+                />
               </li>
               <li>
-                Añade un complemento exportador de biblioteca (por ejemplo «Library Exporter») y, en
-                los campos a exportar, marca <strong>Nombre</strong> y <strong>Fuente</strong> (para
-                que cada juego vaya a su tienda). Opcionales: <em>Estado de finalización</em>,{" "}
-                <em>Tiempo jugado</em> y <em>Favorito</em>.
+                <Trans
+                  i18nKey="importPage.playnite.step2"
+                  components={{ strong: <strong />, em: <em /> }}
+                />
               </li>
               <li>
-                Exporta a CSV y súbelo aquí. Da igual que Playnite esté en español o en inglés.
+                {t("importPage.playnite.step3")}
               </li>
             </ol>
             <p className="mt-1 text-xs text-slate-400">
-              Si el fichero no tiene la columna Fuente, todos los juegos se asignan a la tienda que
-              elijas abajo. Para actualizar, vuelve a exportar y subir: no se duplica nada y, si el
-              fichero trae estado, se aplica.
+              {t("importPage.playnite.note")}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -164,23 +178,17 @@ export default function ImportPage() {
               }}
             />
           </div>
-          {fileImport.isPending && <p className="text-sm text-slate-400">Importando…</p>}
+          {fileImport.isPending && <p className="text-sm text-slate-400">{t("importPage.importing")}</p>}
           {fileImport.error && <p className="text-sm text-red-400">{fileImport.error.message}</p>}
           {fileImport.data && (
             <p className="text-sm text-emerald-400">
-              {fileImport.data.imported_count} juegos importados. Las portadas y géneros se añadirán
-              en segundo plano.
+              {t("importPage.imported", { count: fileImport.data.imported_count })}
             </p>
           )}
           <details className="text-sm text-slate-400">
-            <summary className="cursor-pointer text-slate-300">Formato del fichero</summary>
+            <summary className="cursor-pointer text-slate-300">{t("importPage.format.title")}</summary>
             <p className="mt-2">
-              Columnas reconocidas: <code>title</code> o <code>name</code> (obligatoria),{" "}
-              <code>playtime_minutes</code> o <code>playtime_hours</code>/<code>hours</code>,{" "}
-              <code>status</code> (backlog, playing, completed, dropped, wishlist, other),{" "}
-              <code>last_played</code>, <code>favorite</code> y <code>source</code> /{" "}
-              <code>sourceName</code> (la tienda de cada juego; si existe, manda sobre la plataforma
-              elegida arriba).
+              <Trans i18nKey="importPage.format.columns" components={{ code: <code /> }} />
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs">
@@ -195,15 +203,15 @@ export default function ImportPage() {
       </div>
 
       <section className="card">
-        <h2 className="mb-4 text-lg font-semibold">Historial</h2>
+        <h2 className="mb-4 text-lg font-semibold">{t("importPage.history")}</h2>
         {jobs.data?.length ? (
           <table className="w-full text-left text-sm">
             <thead className="text-slate-400">
               <tr>
-                <th className="pb-2 font-medium">Fecha</th>
-                <th className="pb-2 font-medium">Plataforma</th>
-                <th className="pb-2 font-medium">Estado</th>
-                <th className="pb-2 text-right font-medium">Juegos</th>
+                <th className="pb-2 font-medium">{t("importPage.date")}</th>
+                <th className="pb-2 font-medium">{t("addGame.platform")}</th>
+                <th className="pb-2 font-medium">{t("importPage.status")}</th>
+                <th className="pb-2 text-right font-medium">{t("stats.games")}</th>
                 <th className="pb-2" />
               </tr>
             </thead>
@@ -215,7 +223,7 @@ export default function ImportPage() {
                     <span className="flex items-center gap-1.5">
                       <PlatformIcon platform={j.platform} title="" className="h-4 w-4" />
                       {PLATFORM_LABELS[j.platform]}
-                      {j.automatic && <span className="text-xs text-slate-500">· automática</span>}
+                      {j.automatic && <span className="text-xs text-slate-500">· {t("importPage.automatic")}</span>}
                     </span>
                   </td>
                   <td>
@@ -241,7 +249,7 @@ export default function ImportPage() {
                       }
                       {SYNC_STATUS_LABELS[j.status]}
                     </span>
-                    {j.error && <p className="text-xs text-slate-500">{j.error}</p>}
+                    {j.error && <p className="text-xs text-slate-500">{jobError(j.error)}</p>}
                   </td>
                   <td className="text-right tabular-nums">{j.imported_count}</td>
                   <td className="w-32 py-1 text-right">
@@ -252,15 +260,11 @@ export default function ImportPage() {
                         disabled={undo.isPending}
                         onClick={() =>
                           confirm(
-                            `¿Deshacer esta importación de ${PLATFORM_LABELS[j.platform]}?
-
-` +
-                              "Se quitarán los juegos que añadió y los que ya tenías volverán a su " +
-                              "estado anterior.",
+                            t("importPage.undoConfirm", { platform: PLATFORM_LABELS[j.platform] }),
                           ) && undo.mutate(j.id)
                         }
                       >
-                        ↶ Deshacer
+                        ↶ {t("importPage.undo")}
                       </button>
                     )}
                   </td>
@@ -269,11 +273,11 @@ export default function ImportPage() {
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-slate-500">Todavía no has importado nada.</p>
+          <p className="text-sm text-slate-500">{t("importPage.nothingYet")}</p>
         )}
         {undo.error && <p className="mt-3 text-sm text-red-400">{undo.error.message}</p>}
         {undo.isSuccess && !undo.isPending && (
-          <p className="mt-3 text-sm text-slate-400">Importación deshecha.</p>
+          <p className="mt-3 text-sm text-slate-400">{t("importPage.undone")}</p>
         )}
       </section>
     </div>

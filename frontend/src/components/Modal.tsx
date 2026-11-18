@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   title: string;
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export default function Modal({ title, onClose, children }: Props) {
+  const { t } = useTranslation();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -26,7 +28,7 @@ export default function Modal({ title, onClose, children }: Props) {
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Cerrar">
+          <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label={t("common.close")}>
             ✕
           </button>
         </div>

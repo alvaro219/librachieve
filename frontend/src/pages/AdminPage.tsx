@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 
 import { adminApi } from "../api/endpoints";
@@ -7,7 +8,7 @@ import type { AdminUser } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import Avatar from "../components/Avatar";
 import PlatformIcon from "../components/PlatformIcon";
-import { formatDate } from "../lib/labels";
+import { formatDate, formatNumber } from "../lib/labels";
 
 const PAGE = 50;
 
@@ -24,13 +25,14 @@ function Stat({
     <div className="card p-4">
       <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
       <p className={`text-2xl font-bold tabular-nums ${warn && value ? "text-amber-300" : ""}`}>
-        {value?.toLocaleString("es-ES") ?? "—"}
+        {value === undefined ? "—" : formatNumber(value)}
       </p>
     </div>
   );
 }
 
 function UserActions({ user, self }: { user: AdminUser; self: boolean }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const onSuccess = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin"] });
@@ -40,7 +42,7 @@ function UserActions({ user, self }: { user: AdminUser; self: boolean }) {
     onSuccess,
   });
   const remove = useMutation({ mutationFn: () => adminApi.deleteUser(user.id), onSuccess });
-  if (self) return <span className="block text-right text-xs text-slate-500">Tú</span>;
+  if (self) return <span className="block text-right text-xs text-slate-500">{t("admin.you")}</span>;
   const busy = setRole.isPending || remove.isPending;
 
   return (
@@ -51,24 +53,21 @@ function UserActions({ user, self }: { user: AdminUser; self: boolean }) {
         onClick={() =>
           confirm(
             user.role === "admin"
-              ? `¿Quitar el rol de administrador a ${user.username}?`
-              : `¿Hacer administrador a ${user.username}? Podrá gestionar todas las cuentas.`,
+              ? t("admin.confirmDemote", { name: user.username })
+              : t("admin.confirmPromote", { name: user.username }),
           ) && setRole.mutate()
         }
       >
-        {user.role === "admin" ? "Quitar admin" : "Hacer admin"}
+        {user.role === "admin" ? t("admin.demote") : t("admin.promote")}
       </button>
       <button
         className="btn-danger px-2.5 py-1 text-xs"
         disabled={busy}
         onClick={() =>
-          confirm(
-            `¿Eliminar la cuenta de ${user.username}? Se borran su biblioteca, notas y amigos. ` +
-              "No se puede deshacer.",
-          ) && remove.mutate()
+          confirm(t("admin.confirmDelete", { name: user.username })) && remove.mutate()
         }
       >
-        Eliminar
+        {t("admin.delete")}
       </button>
     </span>
   );
@@ -76,15 +75,16 @@ function UserActions({ user, self }: { user: AdminUser; self: boolean }) {
 
 export default function AdminPage() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [q, setQ] = useState("");
   const [offset, setOffset] = useState(0);
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setQ(input.trim());
       setOffset(0);
     }, 300);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [input]);
 
   const isAdmin = user?.role === "admin";
@@ -107,29 +107,29 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Administración</h1>
+      <h1 className="text-2xl font-bold">{t("nav.admin")}</h1>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        <Stat label="Usuarios" value={o?.users} />
-        <Stat label="Activos 30 días" value={o?.active_users_30d} />
-        <Stat label="Con Steam" value={o?.steam_users} />
-        <Stat label="Juegos" value={o?.games} />
-        <Stat label="Sin datos IGDB" value={o?.games_without_metadata} warn />
-        <Stat label="En bibliotecas" value={o?.library_entries} />
-        <Stat label="Errores 24 h" value={o?.failed_jobs_24h} warn />
+        <Stat label={t("admin.stats.users")} value={o?.users} />
+        <Stat label={t("admin.stats.active")} value={o?.active_users_30d} />
+        <Stat label={t("admin.stats.steam")} value={o?.steam_users} />
+        <Stat label={t("stats.games")} value={o?.games} />
+        <Stat label={t("admin.stats.noMetadata")} value={o?.games_without_metadata} warn />
+        <Stat label={t("admin.stats.inLibraries")} value={o?.library_entries} />
+        <Stat label={t("admin.stats.errors")} value={o?.failed_jobs_24h} warn />
       </div>
 
       <section className="card flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Metadatos de IGDB</h2>
+          <h2 className="font-semibold">{t("admin.igdb.title")}</h2>
           <p className="text-sm text-slate-400">
-            Vuelve a buscar en IGDB los juegos que todavía no tienen portada ni datos.
+            {t("admin.igdb.hint")}
           </p>
         </div>
         <span className="flex items-center gap-3">
           {reenrich.data && (
             <span className="text-sm text-emerald-400">
-              ✓ {reenrich.data.enqueued} juegos en cola
+              ✓ {t("admin.igdb.queued", { count: reenrich.data.enqueued })}
             </span>
           )}
           <button
@@ -137,7 +137,7 @@ export default function AdminPage() {
             disabled={reenrich.isPending || !o?.games_without_metadata}
             onClick={() => reenrich.mutate()}
           >
-            Volver a buscar
+            {t("admin.igdb.run")}
           </button>
         </span>
       </section>
@@ -145,11 +145,11 @@ export default function AdminPage() {
       <section className="card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold">
-            Usuarios <span className="text-slate-500">({total})</span>
+            {t("admin.stats.users")} <span className="text-slate-500">({total})</span>
           </h2>
           <input
             className="input sm:max-w-xs"
-            placeholder="Buscar por nombre o email…"
+            placeholder={t("admin.search")}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
@@ -159,11 +159,11 @@ export default function AdminPage() {
           <table className="w-full text-left text-sm">
             <thead className="text-slate-400">
               <tr>
-                <th className="pb-2 font-medium">Usuario</th>
-                <th className="pb-2 font-medium">Email</th>
-                <th className="pb-2 text-right font-medium">Juegos</th>
-                <th className="pb-2 pl-6 font-medium">Alta</th>
-                <th className="pb-2 pl-4 font-medium">Última visita</th>
+                <th className="pb-2 font-medium">{t("admin.user")}</th>
+                <th className="pb-2 font-medium">{t("auth.email")}</th>
+                <th className="pb-2 text-right font-medium">{t("stats.games")}</th>
+                <th className="pb-2 pl-6 font-medium">{t("admin.joined")}</th>
+                <th className="pb-2 pl-4 font-medium">{t("admin.lastSeen")}</th>
                 <th className="pb-2" />
               </tr>
             </thead>
@@ -179,7 +179,7 @@ export default function AdminPage() {
                       {u.steam_id && (
                         <PlatformIcon
                           platform="steam"
-                          title="Steam vinculado"
+                          title={t("admin.steamLinked")}
                           className="h-3.5 w-3.5"
                         />
                       )}
@@ -188,7 +188,7 @@ export default function AdminPage() {
                           admin
                         </span>
                       )}
-                      {!u.is_public && <span className="text-xs text-slate-500">privado</span>}
+                      {!u.is_public && <span className="text-xs text-slate-500">{t("admin.private")}</span>}
                     </span>
                   </td>
                   <td className="pr-4 text-slate-400">{u.email ?? "—"}</td>
@@ -208,7 +208,7 @@ export default function AdminPage() {
         {total > PAGE && (
           <div className="flex items-center justify-end gap-3 text-sm">
             <span className="text-slate-400">
-              {offset + 1}–{Math.min(offset + PAGE, total)} de {total}
+              {t("admin.range", { from: offset + 1, to: Math.min(offset + PAGE, total), total })}
             </span>
             <button
               className="btn-secondary px-3 py-1"

@@ -9,6 +9,7 @@ from sqlalchemy import Select, asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.fastapi import BaseContext, GraphQLRouter
 
+from app.core.i18n import tr
 from app.db.session import get_db
 from app.deps import user_from_token
 from app.models import Game, GameRating, LibraryEntry, User
@@ -235,9 +236,9 @@ class Query:
             try:
                 owner = await get_visible_user(ctx.db, username, ctx.user)
             except HTTPException as e:
-                raise PermissionError("User not found") from e
+                raise PermissionError(tr("user_not_found")) from e
         elif ctx.user is None:
-            raise PermissionError("Not authenticated")
+            raise PermissionError(tr("not_authenticated"))
         else:
             owner = ctx.user
 
@@ -283,9 +284,9 @@ class Query:
             try:
                 owner = await get_visible_user(ctx.db, username, ctx.user)
             except HTTPException as e:
-                raise PermissionError("User not found") from e
+                raise PermissionError(tr("user_not_found")) from e
         elif ctx.user is None:
-            raise PermissionError("Not authenticated")
+            raise PermissionError(tr("not_authenticated"))
         else:
             owner = ctx.user
         genre = func.unnest(Game.genres).label("genre")
@@ -306,7 +307,7 @@ class Query:
     async def custom_folders(self, info: strawberry.Info[Context, None]) -> list[str]:
         ctx = info.context
         if ctx.user is None:
-            raise PermissionError("Not authenticated")
+            raise PermissionError(tr("not_authenticated"))
         rows = await ctx.db.scalars(
             select(LibraryEntry.custom_folder)
             .where(LibraryEntry.user_id == ctx.user.id, LibraryEntry.custom_folder.is_not(None))

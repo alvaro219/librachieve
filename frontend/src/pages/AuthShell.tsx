@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import Footer from "../components/Footer";
@@ -28,9 +29,10 @@ export default function AuthShell({ title, children }: { title: string; children
 }
 
 export function SteamButton() {
+  const { t } = useTranslation();
   return (
     <a href="/api/auth/steam/login" className="btn-secondary w-full">
-      Entrar con Steam
+      {t("auth.steamSignIn")}
     </a>
   );
 }

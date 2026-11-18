@@ -10,7 +10,7 @@ Requisitos: Docker Desktop.
 
 ```bash
 cp .env.example .env        # rellena las claves (ver abajo)
-docker compose -f infra/docker-compose.yml up -d --build
+docker compose -f infra/docker-compose.yml up -d --build -V
 ```
 
 - App: http://localhost:5173
@@ -88,6 +88,14 @@ Restaurar una copia: `gunzip -c librachieve-FECHA.sql.gz | docker compose -f inf
 No tienen API pública, así que se importan con un fichero JSON/CSV. Lo más cómodo es Playnite con un
 complemento exportador de biblioteca: el fichero indica la tienda de cada juego y Librachieve lo
 reparte solo. Volver a importar actualiza sin duplicar.
+
+## Idiomas
+
+La web está en español, inglés y francés: se elige sola según el idioma del navegador (si no es
+ninguno de los tres, inglés) y se cambia en Ajustes o en el pie de página. Los mensajes de error del
+servidor y los logros de Steam también llegan en el idioma elegido. Los textos están en
+`frontend/src/i18n/locales/` (el español es la referencia) y los del servidor en
+`backend/app/core/i18n.py`.
 
 ## App para Windows y Android
 

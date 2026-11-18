@@ -3,13 +3,14 @@ import secrets
 from datetime import UTC, datetime
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import RedirectResponse
 from redis.asyncio import Redis
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.i18n import ApiError
 from app.core.ratelimit import hit, limit_by_ip
 from app.core.redis import get_redis
 from app.core.security import (
@@ -74,7 +75,7 @@ async def register(
         )
     )
     if exists:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Username or email already in use")
+        raise ApiError(status.HTTP_409_CONFLICT, "username_or_email_taken")
 
     user = User(
         username=body.username,
@@ -104,7 +105,7 @@ async def login(
         select(User).where(or_(func.lower(User.username) == login_value, User.email == login_value))
     )
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
+        raise ApiError(status.HTTP_401_UNAUTHORIZED, "invalid_credentials")
     return await _issue_tokens(response, redis, db, user)
 
 
@@ -124,7 +125,7 @@ async def refresh(
     user = await db.get(User, user_id) if user_id else None
     if user is None:
         response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/auth")
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
+        raise ApiError(status.HTTP_401_UNAUTHORIZED, "session_expired")
     return await _issue_tokens(response, redis, db, user)
 
 

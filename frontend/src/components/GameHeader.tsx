@@ -1,10 +1,19 @@
+import { useTranslation } from "react-i18next";
+
 import type { LibraryEntry } from "../api/types";
-import { PLATFORM_LABELS, STATUS_LABELS, formatDate, formatPlaytime } from "../lib/labels";
+import {
+  PLATFORM_LABELS,
+  STATUS_LABELS,
+  formatDate,
+  formatPlaytime,
+  genreLabel,
+} from "../lib/labels";
 import PlatformIcon from "./PlatformIcon";
 
 export type GameTab = "details" | "achievements";
 
 export function GameHeader({ entry }: { entry: LibraryEntry }) {
+  const { t } = useTranslation();
   const { game } = entry;
   return (
     <div className="mb-4 flex gap-4">
@@ -17,9 +26,9 @@ export function GameHeader({ entry }: { entry: LibraryEntry }) {
           {PLATFORM_LABELS[entry.platform]} · {STATUS_LABELS[entry.status]} ·{" "}
           {formatPlaytime(entry.playtime_minutes)}
         </p>
-        {game.release_date && <p>Lanzamiento: {formatDate(game.release_date)}</p>}
-        {game.genres.length > 0 && <p>{game.genres.join(" · ")}</p>}
-        {entry.last_played_at && <p>Última partida: {formatDate(entry.last_played_at)}</p>}
+        {game.release_date && <p>{t("game.released", { date: formatDate(game.release_date) })}</p>}
+        {game.genres.length > 0 && <p>{game.genres.map(genreLabel).join(" · ")}</p>}
+        {entry.last_played_at && <p>{t("game.lastPlayed", { date: formatDate(entry.last_played_at) })}</p>}
       </div>
     </div>
   );
@@ -34,6 +43,7 @@ export function GameTabs({
   tab: GameTab;
   onChange: (tab: GameTab) => void;
 }) {
+  const { t } = useTranslation();
   const item = (value: GameTab, label: string) => (
     <button
       type="button"
@@ -49,12 +59,12 @@ export function GameTabs({
   );
   return (
     <div className="mb-4 flex border-b border-slate-800">
-      {item("details", "Detalles")}
+      {item("details", t("game.details"))}
       {item(
         "achievements",
         entry.achievements_total > 0
-          ? `Logros (${entry.achievements_unlocked}/${entry.achievements_total})`
-          : "Logros",
+          ? `${t("game.achievements")} (${entry.achievements_unlocked}/${entry.achievements_total})`
+          : t("game.achievements"),
       )}
     </div>
   );

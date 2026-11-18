@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { friendsApi, usersApi } from "../api/endpoints";
@@ -11,6 +12,7 @@ import PlatformIcon from "../components/PlatformIcon";
 import { formatDate } from "../lib/labels";
 
 function SteamFriends() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const found = useQuery({
     queryKey: ["steamFriends"], // not under "friends": friend actions must not re-ask Steam
@@ -32,7 +34,7 @@ function SteamFriends() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 font-semibold">
           <PlatformIcon platform="steam" title="" className="h-5 w-5" />
-          Tus amigos de Steam en Librachieve
+          {t("friendsPage.steamTitle")}
         </h2>
         {missing > 0 && (
           <button
@@ -40,11 +42,11 @@ function SteamFriends() {
             disabled={addAll.isPending}
             onClick={() => addAll.mutate()}
           >
-            Añadir {missing === 1 ? "a 1" : `a los ${missing}`}
+            {t("friendsPage.addAll", { count: missing })}
           </button>
         )}
       </div>
-      {found.isLoading && <p className="text-sm text-slate-400">Consultando Steam…</p>}
+      {found.isLoading && <p className="text-sm text-slate-400">{t("friendsPage.askingSteam")}</p>}
       {found.error && <p className="text-sm text-amber-300">{found.error.message}</p>}
       {addAll.error && <p className="text-sm text-red-400">{addAll.error.message}</p>}
       {found.data &&
@@ -60,11 +62,11 @@ function SteamFriends() {
           </ul>
         ) : (
           <p className="text-sm text-slate-400">
-            Ninguno de tus amigos de Steam usa Librachieve todavía.
+            {t("friendsPage.noneOnSteam")}
           </p>
         ))}
       <p className="text-xs text-slate-500">
-        Como ya sois amigos en Steam, se añaden directamente, sin solicitud.
+        {t("friendsPage.steamNote")}
       </p>
     </section>
   );
@@ -79,6 +81,7 @@ function UserRow({
   detail?: string;
   actions: ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <li className="flex items-center gap-3 py-3">
       <Avatar user={user} />
@@ -94,7 +97,7 @@ function UserRow({
           <span className="font-medium">{user.username}</span>
         )}
         <p className="text-xs text-slate-500">
-          {[user.is_public ? null : "Perfil privado", detail].filter(Boolean).join(" · ")}
+          {[user.is_public ? null : t("friendsPage.privateProfile"), detail].filter(Boolean).join(" · ")}
         </p>
       </div>
       {actions}
@@ -103,11 +106,12 @@ function UserRow({
 }
 
 function Search() {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [q, setQ] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setQ(input.trim()), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setQ(input.trim()), 300);
+    return () => clearTimeout(timer);
   }, [input]);
 
   const results = useQuery({
@@ -118,19 +122,19 @@ function Search() {
 
   return (
     <section className="card space-y-3">
-      <h2 className="font-semibold">Buscar usuarios</h2>
+      <h2 className="font-semibold">{t("friendsPage.searchTitle")}</h2>
       <input
         className="input"
-        placeholder="Nombre de usuario…"
+        placeholder={t("friendsPage.searchPlaceholder")}
         value={input}
         onChange={(e) => setInput(e.target.value)}
       />
       <p className="text-xs text-slate-500">
-        Los perfiles privados solo aparecen si escribes su nombre exacto.
+        {t("friendsPage.searchHint")}
       </p>
       {q.length >= 2 &&
         (results.isLoading ? (
-          <p className="text-sm text-slate-400">Buscando…</p>
+          <p className="text-sm text-slate-400">{t("common.searching")}</p>
         ) : results.data?.length ? (
           <ul className="divide-y divide-slate-800">
             {results.data.map((u) => (
@@ -142,7 +146,7 @@ function Search() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-400">Nadie con ese nombre.</p>
+          <p className="text-sm text-slate-400">{t("friendsPage.noResults")}</p>
         ))}
     </section>
   );
@@ -176,6 +180,7 @@ function FriendList({
 
 export default function FriendsPage() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const friends = useFriends();
   const { accept, remove } = useFriendActions();
   const busy = accept.isPending || remove.isPending;
@@ -183,14 +188,14 @@ export default function FriendsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold">Amigos</h1>
+      <h1 className="text-2xl font-bold">{t("nav.friends")}</h1>
 
-      <FriendList title="Solicitudes recibidas" items={data.incoming}>
+      <FriendList title={t("friendsPage.incoming")} items={data.incoming}>
         {(f) => (
           <UserRow
             key={f.id}
             user={f.user}
-            detail={`desde el ${formatDate(f.created_at)}`}
+            detail={t("friendsPage.since", { date: formatDate(f.created_at) })}
             actions={
               <span className="flex gap-2">
                 <button
@@ -198,14 +203,14 @@ export default function FriendsPage() {
                   disabled={busy}
                   onClick={() => accept.mutate(f.id)}
                 >
-                  Aceptar
+                  {t("friends.accept")}
                 </button>
                 <button
                   className="btn-secondary px-3 py-1.5"
                   disabled={busy}
                   onClick={() => remove.mutate(f.id)}
                 >
-                  Rechazar
+                  {t("friends.reject")}
                 </button>
               </span>
             }
@@ -214,28 +219,32 @@ export default function FriendsPage() {
       </FriendList>
 
       <FriendList
-        title="Tus amigos"
+        title={t("friendsPage.yourFriends")}
         items={data.friends}
         empty={
           friends.isLoading
-            ? "Cargando…"
-            : "Todavía no tienes amigos. Búscalos abajo por su nombre."
+            ? t("common.loading")
+            : t("friendsPage.noFriends")
         }
       >
         {(f) => (
           <UserRow
             key={f.id}
             user={f.user}
-            detail={f.accepted_at ? `amigos desde el ${formatDate(f.accepted_at)}` : undefined}
+            detail={
+              f.accepted_at
+                ? t("friendsPage.friendsSince", { date: formatDate(f.accepted_at) })
+                : undefined
+            }
             actions={
               <button
                 className="btn-secondary px-3 py-1.5 text-xs"
                 disabled={busy}
                 onClick={() =>
-                  confirm(`¿Quitar a ${f.user.username} de tus amigos?`) && remove.mutate(f.id)
+                  confirm(t("friends.confirmRemove", { name: f.user.username })) && remove.mutate(f.id)
                 }
               >
-                Quitar
+                {t("entry.remove")}
               </button>
             }
           />
@@ -247,27 +256,27 @@ export default function FriendsPage() {
       ) : (
         <p className="text-sm text-slate-400">
           <Link to="/settings" className="text-indigo-400 hover:underline">
-            Vincula tu cuenta de Steam
+            {t("friendsPage.linkSteam")}
           </Link>{" "}
-          para añadir de golpe a tus amigos de Steam que usen Librachieve.
+          {t("friendsPage.linkSteamHint")}
         </p>
       )}
 
       <Search />
 
-      <FriendList title="Solicitudes enviadas" items={data.outgoing}>
+      <FriendList title={t("friendsPage.outgoing")} items={data.outgoing}>
         {(f) => (
           <UserRow
             key={f.id}
             user={f.user}
-            detail={`enviada el ${formatDate(f.created_at)}`}
+            detail={t("friendsPage.sentOn", { date: formatDate(f.created_at) })}
             actions={
               <button
                 className="btn-secondary px-3 py-1.5 text-xs"
                 disabled={busy}
                 onClick={() => remove.mutate(f.id)}
               >
-                Cancelar
+                {t("common.cancel")}
               </button>
             }
           />

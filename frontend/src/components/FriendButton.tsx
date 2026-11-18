@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { friendsApi } from "../api/endpoints";
 import type { FriendsOverview, FriendState } from "../api/types";
@@ -39,6 +40,7 @@ export function useFriendActions() {
 
 /** Add / accept / cancel / remove, depending on the current relation. */
 export default function FriendButton({ userId, username }: { userId: number; username: string }) {
+  const { t } = useTranslation();
   const friends = useFriends();
   const { request, accept, remove } = useFriendActions();
   const { state, id } = relationTo(friends.data, userId);
@@ -51,10 +53,10 @@ export default function FriendButton({ userId, username }: { userId: number; use
       <button
         className="btn-secondary group px-3 py-1.5"
         disabled={busy}
-        onClick={() => confirm(`¿Quitar a ${username} de tus amigos?`) && remove.mutate(id!)}
+        onClick={() => confirm(t("friends.confirmRemove", { name: username })) && remove.mutate(id!)}
       >
-        <span className="group-hover:hidden">✓ Amigos</span>
-        <span className="hidden text-red-300 group-hover:inline">Quitar amigo</span>
+        <span className="group-hover:hidden">✓ {t("friends.areFriends")}</span>
+        <span className="hidden text-red-300 group-hover:inline">{t("friends.removeFriend")}</span>
       </button>
     );
   } else if (state === "incoming") {
@@ -65,14 +67,14 @@ export default function FriendButton({ userId, username }: { userId: number; use
           disabled={busy}
           onClick={() => accept.mutate(id!)}
         >
-          Aceptar
+          {t("friends.accept")}
         </button>
         <button
           className="btn-secondary px-3 py-1.5"
           disabled={busy}
           onClick={() => remove.mutate(id!)}
         >
-          Rechazar
+          {t("friends.reject")}
         </button>
       </span>
     );
@@ -83,8 +85,8 @@ export default function FriendButton({ userId, username }: { userId: number; use
         disabled={busy}
         onClick={() => remove.mutate(id!)}
       >
-        <span className="group-hover:hidden">Solicitud enviada</span>
-        <span className="hidden group-hover:inline">Cancelar solicitud</span>
+        <span className="group-hover:hidden">{t("friends.requestSent")}</span>
+        <span className="hidden group-hover:inline">{t("friends.cancelRequest")}</span>
       </button>
     );
   } else {
@@ -94,7 +96,7 @@ export default function FriendButton({ userId, username }: { userId: number; use
         disabled={busy}
         onClick={() => request.mutate(username)}
       >
-        + Añadir amigo
+        + {t("friends.add")}
       </button>
     );
   }

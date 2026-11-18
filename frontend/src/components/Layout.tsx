@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
@@ -44,11 +45,12 @@ function TabIcon({ name }: { name: keyof typeof ICONS }) {
 }
 
 function Badge({ count, className = "" }: { count: number; className?: string }) {
+  const { t } = useTranslation();
   if (count <= 0) return null;
   return (
     <span
       className={`rounded-full bg-indigo-500 px-1.5 text-xs font-semibold text-white ${className}`}
-      title={`${count} solicitudes de amistad`}
+      title={t("nav.pendingRequests", { count })}
     >
       {count}
     </span>
@@ -67,6 +69,7 @@ function UserAvatar({ src, name }: { src: string | null; name: string }) {
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const friends = useFriends(!!user);
   const pending = user ? (friends.data?.incoming.length ?? 0) : 0;
   const isAdmin = user?.role === "admin";
@@ -87,23 +90,23 @@ export default function Layout() {
           {user && (
             <nav className="hidden gap-1 md:flex">
               <NavLink to="/" end className={navClass}>
-                Biblioteca
+                {t("nav.library")}
               </NavLink>
               <NavLink to="/stats" className={navClass}>
-                Estadísticas
+                {t("nav.stats")}
               </NavLink>
               <NavLink to="/import" className={navClass}>
-                Importar
+                {t("nav.import")}
               </NavLink>
               <NavLink to="/amigos" className={navClass}>
                 <span className="flex items-center gap-1.5">
-                  Amigos
+                  {t("nav.friends")}
                   <Badge count={pending} />
                 </span>
               </NavLink>
               {isAdmin && (
                 <NavLink to="/admin" className={navClass}>
-                  Admin
+                  {t("nav.adminShort")}
                 </NavLink>
               )}
             </nav>
@@ -120,13 +123,13 @@ export default function Layout() {
                         isActive ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white"
                       }`
                     }
-                    title="Administración"
-                    aria-label="Administración"
+                    title={t("nav.admin")}
+                    aria-label={t("nav.admin")}
                   >
                     <TabIcon name="admin" />
                   </NavLink>
                 )}
-                <NavLink to="/settings" className={navClass} title="Ajustes">
+                <NavLink to="/settings" className={navClass} title={t("nav.settings")}>
                   <span className="flex min-w-0 items-center gap-2">
                     <UserAvatar src={user.avatar_url} name={user.username} />
                     <span className="hidden truncate sm:inline">{user.username}</span>
@@ -136,12 +139,12 @@ export default function Layout() {
                   onClick={() => void logout()}
                   className="btn-secondary hidden px-3 py-1.5 md:inline-flex"
                 >
-                  Salir
+                  {t("nav.logout")}
                 </button>
               </>
             ) : (
               <Link to="/login" className="btn-primary">
-                Entrar
+                {t("auth.signIn")}
               </Link>
             )}
           </div>
@@ -157,23 +160,23 @@ export default function Layout() {
           <div className="h-[calc(4rem+env(safe-area-inset-bottom))] md:hidden" aria-hidden />
           <nav
             className="fixed inset-x-0 bottom-0 z-30 flex border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
-            aria-label="Secciones"
+            aria-label={t("nav.sections")}
           >
             <NavLink to="/" end className={tabClass}>
               <TabIcon name="library" />
-              Biblioteca
+              {t("nav.library")}
             </NavLink>
             <NavLink to="/stats" className={tabClass}>
               <TabIcon name="stats" />
-              Estadísticas
+              {t("nav.stats")}
             </NavLink>
             <NavLink to="/import" className={tabClass}>
               <TabIcon name="import" />
-              Importar
+              {t("nav.import")}
             </NavLink>
             <NavLink to="/amigos" className={tabClass}>
               <TabIcon name="friends" />
-              Amigos
+              {t("nav.friends")}
               <Badge count={pending} className="absolute left-1/2 top-1 ml-2" />
             </NavLink>
           </nav>

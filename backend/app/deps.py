@@ -1,8 +1,9 @@
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.i18n import ApiError
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models import User, UserRole
@@ -29,9 +30,9 @@ async def get_optional_user(
 
 async def get_current_user(user: User | None = Depends(get_optional_user)) -> User:
     if user is None:
-        raise HTTPException(
+        raise ApiError(
             status.HTTP_401_UNAUTHORIZED,
-            "Not authenticated",
+            "not_authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
@@ -39,5 +40,5 @@ async def get_current_user(user: User | None = Depends(get_optional_user)) -> Us
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != UserRole.ADMIN:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin role required")
+        raise ApiError(status.HTTP_403_FORBIDDEN, "admin_required")
     return user

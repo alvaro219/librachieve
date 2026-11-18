@@ -123,7 +123,12 @@ _STATUS_ALIASES = {
 
 
 class ImportFormatError(ValueError):
-    pass
+    """A message code from app.core.i18n plus its parameters (shown to the user translated)."""
+
+    def __init__(self, code: str, **params):
+        super().__init__(code)
+        self.code = code
+        self.params = params
 
 
 @dataclass
@@ -211,11 +216,11 @@ def _parse_json(text: str) -> list[dict]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
-        raise ImportFormatError(f"Invalid JSON: {e.msg}") from e
+        raise ImportFormatError("invalid_json", error=e.msg) from e
     if isinstance(data, dict):
         data = data.get("games") or data.get("library") or data.get("items")
     if not isinstance(data, list):
-        raise ImportFormatError("JSON must be a list of games or an object with a 'games' list")
+        raise ImportFormatError("json_shape")
     return [r for r in data if isinstance(r, dict)]
 
 
@@ -238,7 +243,7 @@ def parse_import_file(filename: str, content: bytes) -> list[ImportedGame]:
         rows = _parse_json(text) if text.lstrip().startswith(("[", "{")) else _parse_csv(text)
 
     if len(rows) > MAX_ROWS:
-        raise ImportFormatError(f"Too many rows (max {MAX_ROWS})")
+        raise ImportFormatError("too_many_rows", max=MAX_ROWS)
 
     games: dict[tuple[str, Platform | None], ImportedGame] = {}
     for raw in rows:
@@ -247,5 +252,5 @@ def parse_import_file(filename: str, content: bytes) -> list[ImportedGame]:
             # de-duplicate within the file (the same game may be owned on several stores)
             games.setdefault((game.title.lower(), game.platform), game)
     if not games:
-        raise ImportFormatError("No games found. Expected a 'title' or 'name' column.")
+        raise ImportFormatError("no_games_found")
     return list(games.values())

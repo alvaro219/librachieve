@@ -25,7 +25,7 @@ Librachieve is a full-stack web application for personal video game library mana
 10. **Daily Steam sync:** ARQ cron `schedule_steam_syncs` at 04:00 UTC for users with Steam linked and `last_seen_at` in the last 30 days (set on login/refresh); jobs flagged `automatic`, only the newest is listed and older than 7 days are pruned.
 
 ## Project Structure
-- `frontend/` — React app (`src/api` typed client, `src/pages`, `src/components`, UI strings in Spanish, enum labels in `src/lib/labels.ts`)
+- `frontend/` — React app (`src/api` typed client, `src/pages`, `src/components`, UI strings in `src/i18n/locales/{es,en,fr}.ts`, enum labels in `src/lib/labels.ts`)
 - `backend/` — FastAPI app with routers: auth, games, library, users, friends, sync, admin
   - `app/models` SQLAlchemy models · `app/schemas` Pydantic · `app/services` (steam, igdb, importers, catalog, stats, queue, friends) · `app/graphql` Strawberry schema · `app/worker.py` ARQ worker · `app/cli.py` management commands
 - `infra/` — Docker Compose (dev + prod), `Caddyfile` (prod HTTPS entry point), `server-setup.sh` (VM bootstrap), Kubernetes manifests (`infra/k8s`, Minikube staging)
@@ -45,12 +45,15 @@ Librachieve is a full-stack web application for personal video game library mana
 - Never log or store raw httpx errors: Steam Web API URLs carry our API key in the query string. Use `app.core.http.describe_error`. Secrets go in headers or request bodies, never in URLs we control.
 - Legal pages (`/privacidad`, `/aviso-legal`) are required (Spain/GDPR); owner data lives in `frontend/src/lib/site.ts`.
 - Installable PWA (`public/site.webmanifest`, `public/sw.js`, `src/lib/pwa.ts`); the worker registers only in production builds. It must never cache `/api` or `/graphql` (user data, cookie flows); bump `VERSION` in `sw.js` to drop old caches. Mobile layout: bottom tab bar below `md`, header nav from `md` up. Native wrappers (Tauri/Capacitor) are deferred until there is a server; Play Store and code signing cost money.
+- **UI languages: Spanish, English, French.** Frontend: i18next (`src/i18n`); `es.ts` is the source of truth and `en.ts`/`fr.ts` are typed `typeof es`, so a missing key or a `t("unknown.key")` fails `tsc`. Never hardcode user-facing text; use `t()`, `<Trans>` for markup, plural keys `_one`/`_other`, and `formatDate`/`formatNumber`/`genreLabel` from `lib/labels.ts` (never a fixed locale). Language: localStorage `lang` → browser → English; changing it invalidates every query. French strings use a narrow no-break space (U+202F) before `? ! : ;` and inside « ». Legal pages are whole texts per language in `LegalPages.tsx` (Spanish prevails).
+- Backend messages: the frontend sends `Accept-Language`; `app.core.i18n.LanguageMiddleware` sets it per request. Raise `ApiError(status, "code", **params)` with a code from `MESSAGES` (all three languages), never a literal `HTTPException` text. Text stored in the DB that the user sees (`sync_jobs.error`) is a code the frontend translates (`JOB_ERRORS` in `ImportPage.tsx`). Steam achievements are fetched in english/spanish/french: English in `name`/`description`, every language in `achievements.localized` (bump `SCHEMA_KEY` in `achievements.py` to refetch all).
 - Postgres enum types are created/dropped explicitly in migrations (autogenerate doesn't handle shared enums or drop them on downgrade).
 
 ## Commands
 ```bash
 # Full dev stack (frontend :5173, API :8000, Postgres, Redis, worker)
-docker compose -f infra/docker-compose.yml up -d --build
+# -V renews the frontend's node_modules volume: needed after package.json changes
+docker compose -f infra/docker-compose.yml up -d --build -V
 
 # Backend checks (run inside the container; uses a separate test DB + Redis DB 1)
 docker compose -f infra/docker-compose.yml exec postgres psql -U librachieve -c "CREATE DATABASE librachieve_test"   # once

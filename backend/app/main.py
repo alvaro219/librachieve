@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.core.i18n import LanguageMiddleware
 from app.core.redis import redis_client
 from app.db.session import SessionLocal, engine
 from app.graphql.schema import graphql_router
@@ -28,6 +29,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
+app.add_middleware(LanguageMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url],

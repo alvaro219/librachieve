@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
+import i18n from "./i18n";
 import { AuthProvider } from "./auth/AuthContext";
 import "./index.css";
 import { setupPwa } from "./lib/pwa";
@@ -13,6 +14,9 @@ setupPwa();
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
 });
+
+// Server texts (errors, achievements) come in the request language: fetch them again
+i18n.on("languageChanged", () => void queryClient.invalidateQueries());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -4,6 +4,6 @@ export const SITE = {
   ownerName: "Álvaro Antón Maciá",
   contactEmail: "alvaroxam72@gmail.com",
   repoUrl: "https://github.com/alvaro219/librachieve",
-  hosting: "Oracle Cloud Infrastructure (región de Madrid, España)",
-  lastUpdated: "2 de noviembre de 2026",
+  /** ISO date of the last change to the legal pages */
+  lastUpdated: "2026-11-18",
 };

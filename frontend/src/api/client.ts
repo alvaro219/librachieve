@@ -1,3 +1,4 @@
+import i18n, { currentLanguage } from "../i18n";
 import type { TokenResponse } from "./types";
 
 // The access token lives only in memory; the refresh token is an httpOnly cookie
@@ -21,9 +22,8 @@ export class ApiError extends Error {
 function detailToMessage(detail: unknown, fallback: string): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
-    return detail
-      .map((d: { loc?: unknown[]; msg?: string }) => `${d.loc?.slice(1).join(".") ?? ""}: ${d.msg}`)
-      .join("; ");
+    // FastAPI validation errors: the form already checks the fields, so keep it short
+    return i18n.t("errors.invalidData");
   }
   return fallback;
 }
@@ -54,7 +54,8 @@ interface RequestOptions {
 }
 
 export async function rawRequest(path: string, opts: RequestOptions = {}): Promise<Response> {
-  const headers: Record<string, string> = {};
+  // The API answers its messages (and Steam achievements) in the UI language
+  const headers: Record<string, string> = { "Accept-Language": currentLanguage() };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (opts.json !== undefined) headers["Content-Type"] = "application/json";
 

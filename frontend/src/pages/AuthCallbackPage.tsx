@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
@@ -8,10 +9,11 @@ import { useAuth } from "../auth/AuthContext";
 export default function AuthCallbackPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!loading) navigate(user ? "/" : "/login?error=SteamError", { replace: true });
   }, [loading, user, navigate]);
 
-  return <p className="p-8 text-slate-400">Conectando con Steam…</p>;
+  return <p className="p-8 text-slate-400">{t("auth.connectingSteam")}</p>;
 }

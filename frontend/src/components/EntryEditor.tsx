@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { gamesApi, libraryApi } from "../api/endpoints";
 import type { GameStatus, LibraryEntry } from "../api/types";
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function EntryEditor({ entry, folders, onClose }: Props) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<GameStatus>(entry.status);
   const [folder, setFolder] = useState(entry.custom_folder ?? "");
@@ -82,7 +84,7 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
         }}
       >
         <fieldset>
-          <legend className="mb-2 text-sm font-medium text-slate-300">Categoría</legend>
+          <legend className="mb-2 text-sm font-medium text-slate-300">{t("addGame.category")}</legend>
           <div className="grid grid-cols-3 gap-2">
             {STATUS_ORDER.map((s) => (
               <button
@@ -108,7 +110,7 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
         <RatingInput value={rating} onChange={setRating} />
 
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-300">Horas jugadas</span>
+          <span className="mb-1 block text-slate-300">{t("entry.hoursPlayed")}</span>
           <input
             className="input"
             inputMode="decimal"
@@ -124,16 +126,16 @@ export default function EntryEditor({ entry, folders, onClose }: Props) {
             type="button"
             className="btn-danger"
             disabled={remove.isPending}
-            onClick={() => confirm(`¿Quitar «${game.title}» de tu biblioteca?`) && remove.mutate()}
+            onClick={() => confirm(t("entry.confirmRemove", { title: game.title })) && remove.mutate()}
           >
-            Quitar
+            {t("entry.remove")}
           </button>
           <div className="flex gap-2">
             <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancelar
+              {t("common.cancel")}
             </button>
             <button type="submit" className="btn-primary" disabled={save.isPending}>
-              Guardar
+              {t("common.save")}
             </button>
           </div>
         </div>

@@ -625,3 +625,69 @@ async def test_steam_friends_needs_linked_account(client):
     headers = await _register(client)
     headers.pop("username")
     assert (await client.get("/api/friends/steam", headers=headers)).status_code == 400
+
+
+async def test_errors_come_in_the_requested_language(client):
+    headers = await _register(client)
+    headers.pop("username")
+    url = "/api/friends/requests"
+    body = {"username": "nobody_by_that_name"}
+    answers = {}
+    for lang in ("es", "en", "fr", "de"):
+        resp = await client.post(url, headers={**headers, "Accept-Language": lang}, json=body)
+        assert resp.status_code == 404
+        answers[lang] = resp.json()["detail"]
+    assert answers["es"] == "Ese usuario no existe."
+    assert answers["en"] == "That user doesn't exist."
+    assert answers["fr"] == "Cet utilisateur n’existe pas."
+    assert answers["de"] == answers["en"]  # unsupported languages fall back to English
+
+    # Import errors carry their parameters
+    resp = await client.post(
+        "/api/sync/import/epic",
+        headers={**headers, "Accept-Language": "fr-FR,fr;q=0.9"},
+        files={"file": ("games.json", b"{not json", "application/json")},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"].startswith("JSON non valide : ")
+
+
+async def test_achievements_in_the_ui_language(client):
+    from app.db.session import SessionLocal
+    from app.models import LibraryEntry
+    from app.services.achievements import _SteamGameData, _store_schema
+
+    headers = await _register(client)
+    headers.pop("username")
+    resp = await client.post(
+        "/api/library", headers=headers, json={"title": "Celeste", "platform": "steam"}
+    )
+    entry_id = resp.json()["id"]
+
+    def schema(name: str, desc: str | None = None) -> dict:
+        return {"name": "A1", "displayName": name, "description": desc, "icon": "i"}
+
+    data = _SteamGameData(
+        schema=[schema("First steps", "Do something")],
+        localized={
+            "en": {"A1": schema("First steps", "Do something")},
+            "es": {"A1": schema("Primeros pasos", "Haz algo")},
+            "fr": {"A1": schema("Premiers pas")},  # no description: falls back to English
+        },
+    )
+    async with SessionLocal() as db:
+        entry = await db.get(LibraryEntry, entry_id)
+        await _store_schema(db, entry.game_id, data)
+        await db.commit()
+
+    async def first(lang: str) -> tuple[str, str]:
+        resp = await client.get(
+            f"/api/library/{entry_id}/achievements",
+            headers={**headers, "Accept-Language": lang},
+        )
+        a = resp.json()[0]
+        return a["name"], a["description"]
+
+    assert await first("es") == ("Primeros pasos", "Haz algo")
+    assert await first("en") == ("First steps", "Do something")
+    assert await first("fr") == ("Premiers pas", "Do something")

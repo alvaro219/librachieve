@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import type { LibraryEntry } from "../api/types";
 import { STATUS_LABELS, formatPlaytime } from "../lib/labels";
 import PlatformIcon from "./PlatformIcon";
@@ -11,6 +13,7 @@ interface Props {
 }
 
 export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
+  const { t } = useTranslation();
   const { game } = entry;
   return (
     <div className="group relative flex">
@@ -35,7 +38,7 @@ export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
         )}
         {entry.user_rating !== null && (
           <span
-            title={`Tu nota: ${entry.user_rating}`}
+            title={t("ratings.yourScoreValue", { score: entry.user_rating })}
             className={`absolute bottom-2 right-2 rounded-md border bg-slate-950/85 px-1.5 py-0.5 text-sm font-bold tabular-nums ${scoreTone(entry.user_rating)}`}
           >
             {entry.user_rating}
@@ -58,7 +61,10 @@ export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
         {entry.achievements_total > 0 && (
           <div
             className="mt-1"
-            title={`${entry.achievements_unlocked} de ${entry.achievements_total} logros`}
+            title={t("game.achievementsOf", {
+              unlocked: entry.achievements_unlocked,
+              total: entry.achievements_total,
+            })}
           >
             <div className="mb-1 flex justify-between text-[11px] text-slate-400">
               <span>🏆 {entry.achievements_unlocked}/{entry.achievements_total}</span>
@@ -83,7 +89,7 @@ export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
         type="button"
         onClick={onToggleFavorite}
         aria-pressed={entry.is_favorite}
-        title={entry.is_favorite ? "Quitar de favoritos" : "Añadir a favoritos"}
+        title={entry.is_favorite ? t("game.unfavorite") : t("game.favorite")}
         className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/80 text-lg leading-none transition hover:scale-110 ${
           entry.is_favorite ? "text-amber-300" : "text-slate-400 opacity-0 group-hover:opacity-100 focus:opacity-100"
         }`}
@@ -93,7 +99,7 @@ export default function GameCard({ entry, onClick, onToggleFavorite }: Props) {
     ) : (
       entry.is_favorite && (
         <span
-          title="Favorito"
+          title={t("game.isFavorite")}
           className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-slate-950/80 text-lg leading-none text-amber-300"
         >
           ★

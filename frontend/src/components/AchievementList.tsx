@@ -1,17 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { libraryApi } from "../api/endpoints";
 import type { Achievement } from "../api/types";
-import { formatDate } from "../lib/labels";
+import { formatDate, formatNumber } from "../lib/labels";
 
 type Filter = "all" | "unlocked" | "locked";
 
 function formatPercent(p: number): string {
-  return `${p < 10 ? p.toFixed(1).replace(".", ",") : Math.round(p)} %`;
+  return `${p < 10 ? formatNumber(p, 1) : Math.round(p)} %`;
 }
 
 function AchievementRow({ a }: { a: Achievement }) {
+  const { t } = useTranslation();
   const [revealed, setRevealed] = useState(false);
   const concealed = a.hidden && !a.unlocked && !revealed;
   const icon = a.unlocked ? a.icon_url : (a.icon_locked_url ?? a.icon_url);
@@ -31,17 +33,17 @@ function AchievementRow({ a }: { a: Achievement }) {
       )}
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-medium ${a.unlocked ? "text-slate-100" : "text-slate-300"}`}>
-          {concealed ? "Logro oculto" : a.name}
+          {concealed ? t("achievements.hidden") : a.name}
           {rare && (
             <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-300">
-              Raro
+              {t("achievements.rare")}
             </span>
           )}
         </p>
         <p className="truncate text-xs text-slate-400">
           {concealed ? (
             <button onClick={() => setRevealed(true)} className="text-indigo-400 hover:underline">
-              Mostrar (puede contener spoilers)
+              {t("achievements.reveal")}
             </button>
           ) : (
             (a.description ?? "")
@@ -51,14 +53,14 @@ function AchievementRow({ a }: { a: Achievement }) {
       <div className="shrink-0 text-right text-xs">
         {a.unlocked ? (
           <p className="text-emerald-400">
-            ✓ {a.unlocked_at ? formatDate(a.unlocked_at) : "Obtenido"}
+            ✓ {a.unlocked_at ? formatDate(a.unlocked_at) : t("achievements.unlockedOne")}
           </p>
         ) : (
-          <p className="text-slate-500">Pendiente</p>
+          <p className="text-slate-500">{t("achievements.lockedOne")}</p>
         )}
         {a.global_percent !== null && (
-          <p className="text-slate-500" title="Porcentaje de jugadores que lo tienen">
-            {formatPercent(a.global_percent)} jugadores
+          <p className="text-slate-500" title={t("achievements.percentHint")}>
+            {t("achievements.players", { percent: formatPercent(a.global_percent) })}
           </p>
         )}
       </div>
@@ -67,6 +69,7 @@ function AchievementRow({ a }: { a: Achievement }) {
 }
 
 export default function AchievementList({ entryId }: { entryId: number }) {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<Filter>("all");
   const query = useQuery({
     queryKey: ["achievements", entryId],
@@ -90,13 +93,12 @@ export default function AchievementList({ entryId }: { entryId: number }) {
     return all;
   }, [all, filter]);
 
-  if (query.isLoading) return <p className="text-sm text-slate-400">Cargando logros…</p>;
+  if (query.isLoading) return <p className="text-sm text-slate-400">{t("achievements.loading")}</p>;
   if (query.error) return <p className="text-sm text-red-400">{query.error.message}</p>;
   if (all.length === 0) {
     return (
       <p className="text-sm text-slate-400">
-        Este juego no tiene logros, o aún no se han sincronizado. Los logros de Steam se
-        actualizan al pulsar «Sincronizar con Steam» en Importar.
+        {t("achievements.none")}
       </p>
     );
   }
@@ -118,7 +120,7 @@ export default function AchievementList({ entryId }: { entryId: number }) {
       <div>
         <div className="mb-1 flex justify-between text-sm">
           <span className="text-slate-300">
-            {unlocked} de {all.length} logros
+            {t("game.achievementsOf", { unlocked, total: all.length })}
           </span>
           <span className="tabular-nums text-slate-200">{pct} %</span>
         </div>
@@ -127,9 +129,9 @@ export default function AchievementList({ entryId }: { entryId: number }) {
         </div>
       </div>
       <div className="flex gap-2">
-        {chip("all", `Todos (${all.length})`)}
-        {chip("unlocked", `Obtenidos (${unlocked})`)}
-        {chip("locked", `Pendientes (${all.length - unlocked})`)}
+        {chip("all", `${t("achievements.all")} (${all.length})`)}
+        {chip("unlocked", `${t("achievements.unlocked")} (${unlocked})`)}
+        {chip("locked", `${t("achievements.locked")} (${all.length - unlocked})`)}
       </div>
       <ul className="max-h-[50vh] space-y-1 overflow-y-auto pr-1">
         {visible.map((a) => (

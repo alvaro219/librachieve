@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from redis.asyncio import Redis
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.i18n import ApiError
 from app.core.ratelimit import hit
 from app.core.redis import get_redis
 from app.core.security import hash_password, verify_password
@@ -33,7 +34,7 @@ async def get_visible_user(db: AsyncSession, username: str, viewer: User | None)
     owner = await db.scalar(select(User).where(func.lower(User.username) == username.lower()))
     # Private profiles answer 404, not 403, so their existence isn't revealed.
     if owner is None or not can_view(viewer, owner):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "user_not_found")
     return owner
 
 
@@ -53,7 +54,7 @@ async def update_me(
             select(User.id).where(func.lower(User.username) == body.username.lower())
         )
         if taken:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Username already in use")
+            raise ApiError(status.HTTP_409_CONFLICT, "username_taken")
     for field, value in body.model_dump(exclude_unset=True, exclude_none=True).items():
         setattr(user, field, value)
     await db.commit()
@@ -72,7 +73,7 @@ async def change_password(
     if user.password_hash and not (
         body.current_password and verify_password(body.current_password, user.password_hash)
     ):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta.")
+        raise ApiError(status.HTTP_400_BAD_REQUEST, "wrong_password")
     user.password_hash = hash_password(body.new_password)
     await db.commit()
 

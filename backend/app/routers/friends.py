@@ -2,12 +2,13 @@ import logging
 from datetime import UTC, datetime
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.http import describe_error
+from app.core.i18n import ApiError
 from app.core.ratelimit import hit
 from app.core.redis import get_redis
 from app.db.session import get_db
@@ -42,7 +43,7 @@ def _out(f: Friendship, other: User) -> FriendOut:
 async def _own(db: AsyncSession, friendship_id: int, user: User) -> Friendship:
     f = await db.get(Friendship, friendship_id)
     if f is None or user.id not in (f.requester_id, f.addressee_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Friendship not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "friendship_not_found")
     return f
 
 
@@ -73,9 +74,9 @@ async def send_request(
         select(User).where(func.lower(User.username) == body.username.strip().lower())
     )
     if other is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "user_not_found")
     if other.id == user.id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No puedes añadirte a ti mismo.")
+        raise ApiError(status.HTTP_400_BAD_REQUEST, "cannot_add_self")
 
     f = await friends.get_between(db, user.id, other.id)
     if f is None:
@@ -85,9 +86,9 @@ async def send_request(
         f.status = FriendshipStatus.ACCEPTED
         f.accepted_at = _now()
     elif f.status == FriendshipStatus.ACCEPTED:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ya sois amigos.")
+        raise ApiError(status.HTTP_409_CONFLICT, "already_friends")
     else:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ya le enviaste una solicitud.")
+        raise ApiError(status.HTTP_409_CONFLICT, "request_already_sent")
     await db.commit()
     await db.refresh(f)
     return _out(f, other)
@@ -96,17 +97,15 @@ async def send_request(
 async def _steam_friends_here(db: AsyncSession, redis: Redis, user: User) -> list[User]:
     """Librachieve users who are the current user's friends on Steam."""
     if not user.steam_id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Vincula tu cuenta de Steam primero.")
+        raise ApiError(status.HTTP_400_BAD_REQUEST, "link_steam_first")
     await hit(redis, f"steam-friends:user:{user.id}", limit=30, window_seconds=3600)
     try:
         ids = await steam.get_friend_ids(user.steam_id)
     except steam.SteamProfilePrivate as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+        raise ApiError(status.HTTP_409_CONFLICT, e.code) from e
     except (steam.SteamError, httpx.HTTPError) as e:
         logger.warning("Steam friend list failed for user %s: %s", user.id, describe_error(e))
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, "Steam no responde. Prueba otra vez en un rato."
-        ) from e
+        raise ApiError(status.HTTP_502_BAD_GATEWAY, "steam_unavailable") from e
     if not ids:
         return []
     rows = await db.scalars(
@@ -169,7 +168,7 @@ async def accept_request(
 ):
     f = await _own(db, friendship_id, user)
     if f.addressee_id != user.id or f.status != FriendshipStatus.PENDING:
-        raise HTTPException(status.HTTP_409_CONFLICT, "No hay ninguna solicitud que aceptar.")
+        raise ApiError(status.HTTP_409_CONFLICT, "no_request_to_accept")
     f.status = FriendshipStatus.ACCEPTED
     f.accepted_at = _now()
     await db.commit()

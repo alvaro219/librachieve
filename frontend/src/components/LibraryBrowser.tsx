@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   fetchCustomFolders,
@@ -11,7 +12,14 @@ import {
 } from "../api/graphql";
 import { libraryApi } from "../api/endpoints";
 import type { GameStatus, LibraryEntry, Platform } from "../api/types";
-import { PLATFORMS, PLATFORM_LABELS, STATUS_LABELS, STATUS_ORDER } from "../lib/labels";
+import i18n from "../i18n";
+import {
+  PLATFORMS,
+  PLATFORM_LABELS,
+  STATUS_LABELS,
+  STATUS_ORDER,
+  genreLabel,
+} from "../lib/labels";
 import AddGameDialog from "./AddGameDialog";
 import EntryEditor from "./EntryEditor";
 import GameDetail from "./GameDetail";
@@ -23,14 +31,14 @@ type RatingSource = "igdb" | "community" | "critic" | "user";
 
 // Same names as the score tiles in the game view
 const RATING_SOURCES: RatingSource[] = ["igdb", "community", "critic", "user"];
-const RATING_NAMES: Record<RatingSource, string> = {
-  igdb: "Comunidad",
-  community: "Usuarios",
-  critic: "Crítica",
-  user: "Tu nota",
-};
+const RATING_NAMES = {
+  igdb: "ratings.community",
+  community: "ratings.users",
+  critic: "ratings.critics",
+  user: "ratings.yourScore",
+} as const satisfies Record<RatingSource, string>;
 const ratingLabel = (source: RatingSource, own: boolean) =>
-  source === "user" && !own ? "Su nota" : RATING_NAMES[source];
+  i18n.t(source === "user" && !own ? "ratings.theirScore" : RATING_NAMES[source]);
 
 const RATING_FILTER_KEYS = {
   igdb: "minIgdbRating",
@@ -43,14 +51,14 @@ const MIN_RATINGS = [50, 60, 70, 75, 80, 90];
 
 type SortValue = `${SortField}:${SortDirection}`;
 
-const GENERAL_SORTS: { value: SortValue; label: string }[] = [
-  { value: "TITLE:ASC", label: "Título (A-Z)" },
-  { value: "PLAYTIME:DESC", label: "Más jugados" },
-  { value: "LAST_PLAYED:DESC", label: "Jugados recientemente" },
-  { value: "ADDED_AT:DESC", label: "Añadidos recientemente" },
-  { value: "RELEASE_DATE:DESC", label: "Lanzamiento (nuevos)" },
-  { value: "ACHIEVEMENTS:DESC", label: "Más logros (%)" },
-];
+const GENERAL_SORTS = [
+  { value: "TITLE:ASC", label: "library.sort.title" },
+  { value: "PLAYTIME:DESC", label: "library.sort.playtime" },
+  { value: "LAST_PLAYED:DESC", label: "library.sort.lastPlayed" },
+  { value: "ADDED_AT:DESC", label: "library.sort.added" },
+  { value: "RELEASE_DATE:DESC", label: "library.sort.release" },
+  { value: "ACHIEVEMENTS:DESC", label: "library.sort.achievements" },
+] as const satisfies readonly { value: SortValue; label: string }[];
 
 const RATING_SORT_FIELDS: Record<RatingSource, SortField> = {
   igdb: "IGDB_RATING",
@@ -65,6 +73,7 @@ interface Props {
 }
 
 export default function LibraryBrowser({ username }: Props) {
+  const { t } = useTranslation();
   const editable = !username;
   const [status, setStatus] = useState<GameStatus | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
@@ -159,7 +168,7 @@ export default function LibraryBrowser({ username }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {tab(null, "Todos")}
+        {tab(null, t("library.all"))}
         {STATUS_ORDER.map((s) => tab(s, STATUS_LABELS[s]))}
       </div>
 
@@ -185,7 +194,7 @@ export default function LibraryBrowser({ username }: Props) {
         <input
           className="input min-w-0 flex-1"
           type="search"
-          placeholder="Buscar por título…"
+          placeholder={t("library.search")}
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
@@ -197,15 +206,16 @@ export default function LibraryBrowser({ username }: Props) {
           onClick={() => setShowFilters((v) => !v)}
           aria-expanded={showFilters}
         >
-          Filtros{activeFilters > 0 && ` (${activeFilters})`}
+          {t("library.filters")}
+          {activeFilters > 0 && ` (${activeFilters})`}
         </button>
         {editable && (
           <button
             className="btn-primary shrink-0 px-3 sm:px-4"
             onClick={() => setAdding(true)}
-            title="Añadir juego"
+            title={t("addGame.title")}
           >
-            +<span className="hidden sm:inline"> Añadir juego</span>
+            +<span className="hidden sm:inline"> {t("addGame.title")}</span>
           </button>
         )}
       </div>
@@ -215,15 +225,15 @@ export default function LibraryBrowser({ username }: Props) {
       >
         <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
           <span className="mr-1 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 md:inline">
-            Filtrar
+            {t("library.filter")}
           </span>
           <select
             className="input w-full sm:w-auto"
             value={platform}
             onChange={(e) => setPlatform(e.target.value as Platform | "")}
-            aria-label="Plataforma"
+            aria-label={t("addGame.platform")}
           >
-            <option value="">Todas las plataformas</option>
+            <option value="">{t("library.allPlatforms")}</option>
             {PLATFORMS.map((p) => (
               <option key={p} value={p}>
                 {PLATFORM_LABELS[p]}
@@ -234,12 +244,12 @@ export default function LibraryBrowser({ username }: Props) {
             className="input w-full sm:w-auto sm:max-w-[13rem]"
             value={genre}
             onChange={(e) => setGenre(e.target.value)}
-            aria-label="Género"
+            aria-label={t("library.genre")}
           >
-            <option value="">Todos los géneros</option>
+            <option value="">{t("library.allGenres")}</option>
             {genres.data?.map((g) => (
               <option key={g.genre} value={g.genre}>
-                {g.genre} ({g.games})
+                {genreLabel(g.genre)} ({g.games})
               </option>
             ))}
           </select>
@@ -248,12 +258,12 @@ export default function LibraryBrowser({ username }: Props) {
               minRating !== null ? "border-indigo-500/70" : "border-slate-700"
             }`}
           >
-            <span className="text-slate-400">Nota</span>
+            <span className="text-slate-400">{t("library.score")}</span>
             <select
               className="min-w-0 flex-1 cursor-pointer bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none sm:flex-none"
               value={ratingSource}
               onChange={(e) => setRatingSource(e.target.value as RatingSource)}
-              aria-label="Fuente de la nota"
+              aria-label={t("library.scoreSource")}
             >
               {RATING_SOURCES.map((r) => (
                 <option key={r} value={r}>
@@ -265,12 +275,12 @@ export default function LibraryBrowser({ username }: Props) {
               className="min-w-0 flex-1 cursor-pointer rounded-r-lg border-l border-slate-700 bg-slate-900 px-2 py-2 text-slate-100 focus:outline-none sm:flex-none"
               value={minRating ?? ""}
               onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : null)}
-              aria-label="Nota mínima"
+              aria-label={t("library.minScore")}
             >
-              <option value="">cualquiera</option>
+              <option value="">{t("library.anyScore")}</option>
               {MIN_RATINGS.map((n) => (
                 <option key={n} value={n}>
-                  {n} o más
+                  {t("library.orMore", { n })}
                 </option>
               ))}
             </select>
@@ -285,7 +295,7 @@ export default function LibraryBrowser({ username }: Props) {
                 : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800"
             }`}
           >
-            {favoritesOnly ? "★" : "☆"} Favoritos
+            {favoritesOnly ? "★" : "☆"} {t("library.favorites")}
           </button>
           {activeFilters > 0 && (
             <button
@@ -298,28 +308,28 @@ export default function LibraryBrowser({ username }: Props) {
                 setFavoritesOnly(false);
               }}
             >
-              Limpiar
+              {t("library.clear")}
             </button>
           )}
         </div>
 
         <label className="flex w-full items-center gap-2 md:w-auto">
           <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Ordenar por
+            {t("library.sortBy")}
           </span>
           <select
             className="input min-w-0 flex-1 md:w-auto md:flex-none"
             value={sort}
             onChange={(e) => setSort(e.target.value as SortValue)}
           >
-            <optgroup label="General">
+            <optgroup label={t("library.sort.general")}>
               {GENERAL_SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
-                  {s.label}
+                  {t(s.label)}
                 </option>
               ))}
             </optgroup>
-            <optgroup label="Notas (de mayor a menor)">
+            <optgroup label={t("library.sort.scores")}>
               {RATING_SOURCES.map((r) => (
                 <option key={r} value={`${RATING_SORT_FIELDS[r]}:DESC`}>
                   {ratingLabel(r, editable)}
@@ -331,16 +341,16 @@ export default function LibraryBrowser({ username }: Props) {
       </div>
 
       <p className="text-sm text-slate-400">
-        {total} {total === 1 ? "juego" : "juegos"}
+        {t("stats.gamesCount", { count: total })}
       </p>
 
       {library.error && <p className="text-red-400">{library.error.message}</p>}
-      {library.isLoading && <p className="text-slate-400">Cargando biblioteca…</p>}
+      {library.isLoading && <p className="text-slate-400">{t("library.loading")}</p>}
       {library.data && library.data.items.length === 0 && (
         <div className="card text-center text-slate-400">
           {editable
-            ? "No hay juegos aquí. Importa tu biblioteca o añade juegos a mano."
-            : "Esta biblioteca no tiene juegos con estos filtros."}
+            ? t("library.emptyOwn")
+            : t("library.emptyOther")}
         </div>
       )}
 
@@ -366,7 +376,7 @@ export default function LibraryBrowser({ username }: Props) {
             disabled={page === 0}
             onClick={() => setPage((p) => p - 1)}
           >
-            Anterior
+            {t("library.previous")}
           </button>
           <span className="text-sm text-slate-400">
             {page + 1} / {pages}
@@ -376,7 +386,7 @@ export default function LibraryBrowser({ username }: Props) {
             disabled={page + 1 >= pages}
             onClick={() => setPage((p) => p + 1)}
           >
-            Siguiente
+            {t("library.next")}
           </button>
         </div>
       )}

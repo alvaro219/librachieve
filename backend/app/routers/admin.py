@@ -1,9 +1,10 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.i18n import ApiError
 from app.db.session import get_db
 from app.deps import require_admin
 from app.models import Game, LibraryEntry, SyncJob, SyncJobStatus, User
@@ -70,12 +71,10 @@ async def list_users(
 async def _target(db: AsyncSession, user_id: int, admin: User) -> User:
     user = await db.get(User, user_id)
     if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "user_not_found")
     if user.id == admin.id:
         # Avoids locking yourself out by accident; the CLI can still do it
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "No puedes modificar tu propia cuenta aquí."
-        )
+        raise ApiError(status.HTTP_400_BAD_REQUEST, "cannot_modify_self")
     return user
 
 

@@ -1,7 +1,7 @@
 // Librachieve service worker: makes the site installable and shows a friendly page offline.
 // It never caches /api or /graphql: user data always comes fresh from the server (and
 // nothing personal is left on the device after logging out).
-const VERSION = "v1";
+const VERSION = "v2";
 const PAGES = `pages-${VERSION}`;
 const STATIC = `static-${VERSION}`;
 

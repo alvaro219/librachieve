@@ -1,4 +1,8 @@
+import { useTranslation } from "react-i18next";
+
 import type { Game } from "../api/types";
+import i18n from "../i18n";
+import { formatNumber } from "../lib/labels";
 
 /** Metacritic-like bands. The number is always shown, so colour is never the only cue. */
 export function scoreTone(score: number | null | undefined): string {
@@ -9,7 +13,7 @@ export function scoreTone(score: number | null | undefined): string {
 }
 
 const votes = (n: number | null | undefined) =>
-  n ? `${n.toLocaleString("es-ES")} ${n === 1 ? "voto" : "votos"}` : "sin votos";
+  n ? i18n.t("ratings.votes", { count: n, formatted: formatNumber(n) }) : i18n.t("ratings.noVotes");
 
 function ScoreTile({
   label,
@@ -39,32 +43,43 @@ function ScoreTile({
 export function RatingSummary({
   game,
   userRating,
-  ownerLabel = "Tu nota",
+  ownerLabel,
 }: {
   game: Game;
   userRating: number | null;
   ownerLabel?: string;
 }) {
+  const { t } = useTranslation();
+  const owner = ownerLabel ?? t("ratings.yourScore");
   return (
     <div className="flex flex-wrap gap-2">
-      <ScoreTile label={ownerLabel} score={userRating} detail="de 100" title={`${ownerLabel} (0-100)`} />
       <ScoreTile
-        label="Usuarios"
+        label={owner}
+        score={userRating}
+        detail={t("ratings.outOf100")}
+        title={`${owner} (0-100)`}
+      />
+      <ScoreTile
+        label={t("ratings.users")}
         score={game.community_rating}
         detail={votes(game.community_rating_count)}
-        title="Media de los usuarios de Librachieve"
+        title={t("ratings.usersHint")}
       />
       <ScoreTile
-        label="Comunidad"
+        label={t("ratings.community")}
         score={game.igdb_rating}
         detail={votes(game.igdb_rating_count)}
-        title="Media de los usuarios de IGDB"
+        title={t("ratings.communityHint")}
       />
       <ScoreTile
-        label="Crítica"
+        label={t("ratings.critics")}
         score={game.critic_rating}
-        detail={game.critic_rating_count ? `${game.critic_rating_count} reseñas` : "sin reseñas"}
-        title="Media de la crítica profesional (IGDB)"
+        detail={
+          game.critic_rating_count
+            ? t("ratings.reviews", { count: game.critic_rating_count })
+            : t("ratings.noReviews")
+        }
+        title={t("ratings.criticsHint")}
       />
     </div>
   );
@@ -78,6 +93,7 @@ export function RatingInput({
   value: number | null;
   onChange: (value: number | null) => void;
 }) {
+  const { t } = useTranslation();
   const set = (raw: string) => {
     if (raw === "") return onChange(null);
     const n = Math.round(Number(raw));
@@ -87,7 +103,7 @@ export function RatingInput({
     <div className="text-sm">
       <div className="mb-1 flex items-center justify-between">
         <label htmlFor="rating-number" className="text-slate-300">
-          Tu valoración
+          {t("ratings.yourRating")}
         </label>
         {value !== null && (
           <button
@@ -95,7 +111,7 @@ export function RatingInput({
             onClick={() => onChange(null)}
             className="text-xs text-slate-400 hover:text-white"
           >
-            Quitar nota
+            {t("ratings.clear")}
           </button>
         )}
       </div>
@@ -107,7 +123,7 @@ export function RatingInput({
           step={1}
           value={value ?? 50}
           onChange={(e) => set(e.target.value)}
-          aria-label="Tu valoración de 0 a 100"
+          aria-label={t("ratings.sliderLabel")}
           className={`h-2 flex-1 cursor-pointer accent-indigo-500 ${value === null ? "opacity-40" : ""}`}
         />
         <input
@@ -120,7 +136,7 @@ export function RatingInput({
         />
       </div>
       {value === null && (
-        <p className="mt-1 text-xs text-slate-500">Sin valorar. Mueve la barra o escribe una nota.</p>
+        <p className="mt-1 text-xs text-slate-500">{t("ratings.unrated")}</p>
       )}
     </div>
   );

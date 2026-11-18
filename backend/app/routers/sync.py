@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, UploadFile, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.i18n import ApiError
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.models import LibraryEntry, Platform, SyncJob, SyncJobChange, SyncJobStatus, User
@@ -22,9 +23,9 @@ MANUAL_PLATFORMS = {Platform.EPIC, Platform.GOG, Platform.AMAZON, Platform.OTHER
 @router.post("/steam", response_model=SyncJobOut, status_code=status.HTTP_202_ACCEPTED)
 async def sync_steam(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user.steam_id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Link your Steam account first")
+        raise ApiError(status.HTTP_400_BAD_REQUEST, "link_steam_first")
     if not settings.steam_api_key:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Steam sync is not configured")
+        raise ApiError(status.HTTP_503_SERVICE_UNAVAILABLE, "steam_not_configured")
 
     running = await db.scalar(
         select(SyncJob.id).where(
@@ -34,7 +35,7 @@ async def sync_steam(user: User = Depends(get_current_user), db: AsyncSession = 
         )
     )
     if running:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A Steam sync is already in progress")
+        raise ApiError(status.HTTP_409_CONFLICT, "steam_sync_running")
 
     job = SyncJob(user_id=user.id, platform=Platform.STEAM)
     db.add(job)
@@ -51,14 +52,14 @@ async def import_file(
     db: AsyncSession = Depends(get_db),
 ):
     if platform not in MANUAL_PLATFORMS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Use /sync/steam for Steam")
+        raise ApiError(status.HTTP_400_BAD_REQUEST, "use_steam_sync")
     content = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File too large (max 5 MB)")
+        raise ApiError(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "file_too_large")
     try:
         games = parse_import_file(file.filename or "", content)
     except ImportFormatError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from e
+        raise ApiError(status.HTTP_422_UNPROCESSABLE_CONTENT, e.code, **e.params) from e
 
     job = SyncJob(user_id=user.id, platform=platform, status=SyncJobStatus.RUNNING)
     db.add(job)
@@ -148,12 +149,9 @@ async def undo_import(
     """Revert a file import: delete the entries it created, restore the ones it changed."""
     job = await db.get(SyncJob, job_id)
     if job is None or job.user_id != user.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Job not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "job_not_found")
     if job.id != await _latest_undoable_id(db, user.id):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "Solo se puede deshacer la última importación de fichero completada.",
-        )
+        raise ApiError(status.HTTP_409_CONFLICT, "undo_only_last")
 
     changes = (
         await db.scalars(
@@ -199,5 +197,5 @@ async def get_job(
 ):
     job = await db.get(SyncJob, job_id)
     if job is None or job.user_id != user.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Job not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "job_not_found")
     return job

@@ -1,10 +1,11 @@
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.i18n import ApiError
 from app.core.redis import get_redis
 from app.db.session import get_db
 from app.deps import get_current_user
@@ -26,16 +27,16 @@ async def search_games(
     try:
         return await igdb.search(redis, q, limit)
     except igdb.IgdbNotConfigured as e:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+        raise ApiError(status.HTTP_503_SERVICE_UNAVAILABLE, "igdb_not_configured") from e
     except httpx.HTTPError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "IGDB request failed") from e
+        raise ApiError(status.HTTP_502_BAD_GATEWAY, "igdb_failed") from e
 
 
 @router.get("/{game_id}", response_model=GameOut)
 async def get_game(game_id: int, db: AsyncSession = Depends(get_db)):
     game = await db.get(Game, game_id)
     if game is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Game not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "game_not_found")
     return game
 
 
@@ -46,7 +47,7 @@ async def refresh_metadata(
     db: AsyncSession = Depends(get_db),
 ):
     if await db.get(Game, game_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Game not found")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "game_not_found")
     await (await get_queue()).enqueue_job("enrich_games", [game_id])
     return {"queued": True}
 
@@ -60,7 +61,7 @@ async def _rateable_game(db: AsyncSession, game_id: int, user: User) -> Game:
         .limit(1)
     )
     if not owned:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Game not in your library")
+        raise ApiError(status.HTTP_404_NOT_FOUND, "game_not_in_library")
     return game
 
 
