@@ -10,7 +10,7 @@ Librachieve is a full-stack web application for personal video game library mana
 - **API Layer:** REST (primary) + GraphQL via Strawberry (secondary, for complex list queries)
 - **Auth:** JWT access token + revocable refresh token; Steam sign-in via OpenID 2.0
 - **Containerization:** Docker + Docker Compose (dev) / Kubernetes via Minikube (staging)
-- **CI/CD:** GitHub Actions builds amd64+arm64 images to GHCR, then SSH deploy (pull, no build on the server) to a single Oracle Cloud Always Free VM (Caddy + Docker Compose, `infra/docker-compose.prod.yml`). Target is the A1 ARM VM; the 1 GB E2.1.Micro is the stopgap while Madrid has no A1 capacity. The user chose Oracle over AWS to keep hosting free.
+- **CI/CD:** GitHub Actions builds amd64+arm64 images to GHCR, then SSH deploy (pull, no build on the server) to a single Oracle Cloud Always Free VM (Caddy + Docker Compose, `infra/docker-compose.prod.yml`). Target is the A1 ARM VM; the 1 GB E2.1.Micro is the stopgap while Madrid has no A1 capacity. The user chose Oracle over AWS to keep hosting free. While there is no capacity, `.github/workflows/oracle-launch.yml` (+ `infra/oracle/launch.sh`) tries every 10 min with a dedicated OCI user (group `librachieve-launchers`: instances + network only; secrets `OCI_CONFIG`, `OCI_KEY`, `OCI_LAUNCH`) and opens an issue when it creates one; disable it once the A1 exists.
 
 ## Core Features
 1. **Platform sync:** Steam library import via Steam Web API (OpenID sign-in + GetOwnedGames with our server API key). Epic Games, GOG and Amazon Games via manual JSON/CSV import.
