@@ -1,0 +1,64 @@
+# Keeps trying to create the Oracle Cloud Always Free server while Madrid has no capacity,
+# around the clock (the local retry only ran while the PC was on).
+# Uses a dedicated OCI user that can only manage instances (group librachieve-launchers).
+# Once the server exists, disable it: gh workflow disable oracle-launch.yml
+name: Oracle capacity hunt
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: oracle-launch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: OCI credentials
+        env:
+          OCI_CONFIG: ${{ secrets.OCI_CONFIG }}
+          OCI_KEY: ${{ secrets.OCI_KEY }}
+          OCI_LAUNCH: ${{ secrets.OCI_LAUNCH }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/oci"
+          printf '%s\n' "$OCI_CONFIG" > "$RUNNER_TEMP/oci/config"
+          printf '%s\n' "$OCI_KEY" > "$RUNNER_TEMP/oci/key.pem"
+          printf '%s\n' "$OCI_LAUNCH" > "$RUNNER_TEMP/oci/launch.env"
+          # The image runs as uid 1000 (not the runner's), so it must be able to read them.
+          # The runner VM is single-use: group/other read is fine here.
+          chmod 644 "$RUNNER_TEMP"/oci/*
+
+      - name: Try to launch
+        id: launch
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "$RUNNER_TEMP/oci:/oracle/.oci" \
+            -v "$PWD/infra/oracle:/work:ro" \
+            --env-file "$RUNNER_TEMP/oci/launch.env" \
+            -e GITHUB_RUN_NUMBER \
+            -e SUPPRESS_LABEL_WARNING=True \
+            -e OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True \
+            --entrypoint bash \
+            ghcr.io/oracle/oci-cli:latest /work/launch.sh | tee "$RUNNER_TEMP/launch.log"
+          grep '^created=' "$RUNNER_TEMP/launch.log" >> "$GITHUB_OUTPUT" || true
+
+      - name: Tell the owner
+        if: steps.launch.outputs.created != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CREATED: ${{ steps.launch.outputs.created }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Oracle: servidor creado ($CREATED)" \
+            --body "El job ha creado la instancia **$CREATED** en Oracle Cloud (Madrid). Siguiente paso: IP pública, DuckDNS y despliegue. Si es la A1, desactiva este workflow: \`gh workflow disable oracle-launch.yml\`."
